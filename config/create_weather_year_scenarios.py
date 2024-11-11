@@ -28,25 +28,6 @@ weather_year_{year}:
         dx: 0.3
         dy: 0.3
         time: ['{year}', '{end_year}']
-  renewable:
-    onwind:
-      cutout: europe-era5_1980-2020
-    offwind-ac:
-      cutout: europe-era5_1980-2020
-    offwind-dc:
-      cutout: europe-era5_1980-2020
-    solar:
-      cutout: europe-era5_1980-2020
-    hydro:
-      cutout: europe-era5_1980-2020
-    offwind-float:
-      cutout: europe-era5_1980-2020
-    solar-hsat:
-      cutout: europe-era5_1980-2020
-  solar_thermal:
-    cutout: europe-era5_1980-2020
-  sector:
-    heat_demand_cutout: europe-era5_1980-2020
 """
 
 config_values = dict(year=range(1980, 2020), end_year = range(1981, 2021))

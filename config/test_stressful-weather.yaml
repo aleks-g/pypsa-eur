@@ -21,7 +21,7 @@ remote:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
   prefix: "test-stressful-weather"
-  name: "weather_year_1980"
+  name: "all"
   scenarios:
     enable: true
     file: config/weather_scenarios.yaml
@@ -42,7 +42,7 @@ scenario:
   clusters:
   - 90
   opts:
-  - '50SEG-Co2L'
+  - '50seg-Co2L'
   sector_opts:
   - ''
   planning_horizons:
@@ -131,14 +131,14 @@ electricity:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#atlite
 atlite:
-  default_cutout: europe-era5_1980
+  default_cutout: europe-era5_1980-2020
   nprocesses: 4
   show_progress: false
   cutouts:
     # use 'base' to determine geographical bounds and time span from config
     # base:
       # module: era5
-    europe-era5_1980:
+    europe-era5_1980-2020:
       module: [sarah, era5] # in priority order
       x: [-12., 42.]
       y: [33., 72.]
@@ -149,7 +149,7 @@ atlite:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#renewable
 renewable:
   onwind:
-    cutout: europe-era5_1980
+    cutout: europe-era5_1980-2020
     resource:
       method: wind
       turbine: Vestas_V112_3MW
@@ -169,7 +169,7 @@ renewable:
     excluder_resolution: 100
     clip_p_max_pu: 1.e-2
   offwind-ac:
-    cutout: europe-era5_1980
+    cutout: europe-era5_1980-2020
     resource:
       method: wind
       turbine: NREL_ReferenceTurbine_2020ATB_5.5MW
@@ -187,7 +187,7 @@ renewable:
     clip_p_max_pu: 1.e-2
     landfall_length: 10
   offwind-dc:
-    cutout: europe-era5_1980
+    cutout: europe-era5_1980-2020
     resource:
       method: wind
       turbine: NREL_ReferenceTurbine_2020ATB_5.5MW
@@ -205,7 +205,7 @@ renewable:
     clip_p_max_pu: 1.e-2
     landfall_length: 10
   offwind-float:
-    cutout: europe-era5_1980
+    cutout: europe-era5_1980-2020
     resource:
       method: wind
       turbine: NREL_ReferenceTurbine_5MW_offshore
@@ -226,7 +226,7 @@ renewable:
     clip_p_max_pu: 1.e-2
     landfall_length: 10
   solar:
-    cutout: europe-era5_1980
+    cutout: europe-era5_1980-2020
     resource:
       method: pv
       panel: CSi
@@ -241,7 +241,7 @@ renewable:
     excluder_resolution: 100
     clip_p_max_pu: 1.e-2
   solar-hsat:
-    cutout: europe-era5_1980
+    cutout: europe-era5_1980-2020
     resource:
       method: pv
       panel: CSi
@@ -256,7 +256,7 @@ renewable:
     excluder_resolution: 100
     clip_p_max_pu: 1.e-2
   hydro:
-    cutout: europe-era5_1980
+    cutout: europe-era5_1980-2020
     carriers: [ror, PHS, hydro]
     PHS_max_hours: 6
     hydro_max_hours: "energy_capacity_totals_by_country" # one of energy_capacity_totals_by_country, estimate_by_large_installations or a float
@@ -421,7 +421,7 @@ solar_thermal:
   orientation:
     slope: 45.
     azimuth: 180.
-  cutout: default
+  cutout: europe-era5_1980-2020
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#existing-capacities
 existing_capacities:
@@ -487,7 +487,7 @@ sector:
     - air
     - ground
   cluster_heat_buses: true
-  heat_demand_cutout: default
+  heat_demand_cutout: europe-era5_1980-2020
   bev_dsm_restriction_value: 0.75
   bev_dsm_restriction_time: 7
   transport_heating_deadband_upper: 20.
