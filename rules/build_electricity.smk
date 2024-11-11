@@ -125,26 +125,26 @@ rule build_shapes:
         "../scripts/build_shapes.py"
 
 
-if config["enable"].get("build_cutout", False):
+if config["enable"].get("build_cutout", False): 
 
     rule build_cutout:
         params:
             snapshots=config_provider("snapshots"),
             cutouts=config_provider("atlite", "cutouts"),
         input:
-            regions_onshore=resources("regions_onshore.geojson"),
-            regions_offshore=resources("regions_offshore.geojson"),
+            regions_onshore="resources/regions_onshore.geojson",
+            regions_offshore="resources/regions_offshore.geojson",
         output:
-            protected("cutouts/" + CDIR + "{cutout}.nc"),
+            protected("cutouts/test_{cutout}.nc"),
         log:
-            logs(CDIR + "build_cutout/{cutout}.log"),
+            "logs/build_cutout/test_{cutout}.log",
         benchmark:
-            "benchmarks/" + CDIR + "build_cutout_{cutout}"
-        threads: config["atlite"].get("nprocesses", 4)
+            "benchmarks/build_cutout/test_{cutout}.txt",
+        threads: 4,
         resources:
-            mem_mb=config["atlite"].get("nprocesses", 4) * 1000,
+            mem_mb=4000,
         conda:
-            "../envs/environment.yaml"
+            "../envs/environment.yaml",
         script:
             "../scripts/build_cutout.py"
 
