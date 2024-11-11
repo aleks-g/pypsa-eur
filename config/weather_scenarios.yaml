@@ -25,6 +25,10 @@ weather_year_1980:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -55,6 +59,10 @@ weather_year_1981:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -87,6 +95,10 @@ weather_year_1982:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -117,6 +129,10 @@ weather_year_1983:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -149,6 +165,10 @@ weather_year_1984:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -179,6 +199,10 @@ weather_year_1985:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -211,6 +235,10 @@ weather_year_1986:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -241,6 +269,10 @@ weather_year_1987:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -273,6 +305,10 @@ weather_year_1988:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -303,6 +339,10 @@ weather_year_1989:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -335,6 +375,10 @@ weather_year_1990:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -365,6 +409,10 @@ weather_year_1991:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -397,6 +445,10 @@ weather_year_1992:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -427,6 +479,10 @@ weather_year_1993:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -459,6 +515,10 @@ weather_year_1994:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -489,6 +549,10 @@ weather_year_1995:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -521,6 +585,10 @@ weather_year_1996:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -551,6 +619,10 @@ weather_year_1997:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -583,6 +655,10 @@ weather_year_1998:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -613,6 +689,10 @@ weather_year_1999:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -645,6 +725,10 @@ weather_year_2000:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -675,6 +759,10 @@ weather_year_2001:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -707,6 +795,10 @@ weather_year_2002:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -737,6 +829,10 @@ weather_year_2003:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -769,6 +865,10 @@ weather_year_2004:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -799,6 +899,10 @@ weather_year_2005:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -831,6 +935,10 @@ weather_year_2006:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -861,6 +969,10 @@ weather_year_2007:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -893,6 +1005,10 @@ weather_year_2008:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -923,6 +1039,10 @@ weather_year_2009:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -955,6 +1075,10 @@ weather_year_2010:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -985,6 +1109,10 @@ weather_year_2011:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -1017,6 +1145,10 @@ weather_year_2012:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -1047,6 +1179,10 @@ weather_year_2013:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -1079,6 +1215,10 @@ weather_year_2014:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -1109,6 +1249,10 @@ weather_year_2015:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -1141,6 +1285,10 @@ weather_year_2016:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -1171,6 +1319,10 @@ weather_year_2017:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
@@ -1203,6 +1355,10 @@ weather_year_2018:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
@@ -1233,6 +1389,10 @@ weather_year_2019:
     solar:
       cutout: europe-era5_1980-2020
     hydro:
+      cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
       cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020

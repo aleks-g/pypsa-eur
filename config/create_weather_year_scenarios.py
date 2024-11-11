@@ -39,6 +39,10 @@ weather_year_{year}:
       cutout: europe-era5_1980-2020
     hydro:
       cutout: europe-era5_1980-2020
+    offwind-float:
+      cutout: europe-era5_1980-2020
+    solar-hsat:
+      cutout: europe-era5_1980-2020
   solar_thermal:
     cutout: europe-era5_1980-2020
   sector:
