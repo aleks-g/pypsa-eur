@@ -11,6 +11,7 @@ this, we need optimised networks.
 
 import logging
 from typing import NamedTuple, Optional
+import re
 
 import numpy as np
 import pandas as pd
@@ -55,6 +56,7 @@ def global_difficult_periods(
     max_length: int,
     T: float,
     month_bounds: Optional[tuple[int, int]] = None,
+    resolution: int = 1,
 ) -> pd.DataFrame:
     """Find intervals with high global system cost.
 
@@ -82,6 +84,10 @@ def global_difficult_periods(
         cyclic. For example, if `month_bounds == (11, 2)`, only
         periods contained entirely within the November-February range
         (inclusive) are returned.
+    resolution : int = 1
+        Resolution of the network if different from hourly resolution. 
+        Note that only uniform time step aggregation is currently supported.
+
 
     Returns
     -------
@@ -91,9 +97,8 @@ def global_difficult_periods(
         list[pd.Timestamp]
             A list of the most extreme timestamp for the list of periods of interest.
     """
-
-    # TODO: the following only works for hourly resolution!
-    nodal_costs = n.buses_t["marginal_price"] * n.loads_t["p_set"]
+    # TODO: This is currently only implemented for hourly resolution or uniform time step aggregation.
+    nodal_costs = ((n.buses_t["marginal_price"] * n.loads_t["p_set"]).T * n.snapshot_weightings["objective"]).T
     total_costs = nodal_costs.sum(axis="columns")
 
     if month_bounds is not None:
@@ -111,6 +116,13 @@ def global_difficult_periods(
         dtype="float64",
     )
 
+    # If we do not have hourly resolution, adapt the lengths to the
+    # actual length of the time steps.
+    # Note that the floor operation changes min and max length of periods.
+    min_length = min_length // resolution
+    max_length = max_length // resolution
+
+
     for w in range(min_length - 1, max_length - 1):
         # Create array of intervals of width w+1
         intervals = pd.IntervalIndex.from_arrays(
@@ -125,7 +137,7 @@ def global_difficult_periods(
         # to some intervals that span the "gap" between these seasons.
         # Filter those out by only keeping intervals with an actual
         # duration of w+1 hours
-        costs = costs.loc[costs.index.length <= pd.Timedelta(hours=w + 1)]
+        costs = costs.loc[costs.index.length <= pd.Timedelta(hours=resolution * w + 1)]
 
         # Filter out the intervals costing less than T
         costs = costs.loc[costs > T]
@@ -186,7 +198,7 @@ def global_difficult_periods(
                 non_overlapping_I = non_overlapping_I.insert(i, I)
 
         # Add the intervals we found one by one. However, since the
-        # intervals may be been extended, they may now still overlap
+        # intervals may have been extended, they may now still overlap
         # with some of the intervals in the index of C.
         # NOTE: this code path is not taken for the periods of our paper!
         for I in non_overlapping_I:
@@ -216,6 +228,18 @@ if __name__ == "__main__":
     # Load the input network.
     ns = [pypsa.Network(fn) for fn in snakemake.input]
 
+    # Check for <int>H with a regular expression in opts and sector_opts.
+    regex = r"(\d+)H"
+    if regex in snakemake.config["scenario"]["opts"]:
+        resolution = int(re.search(regex, snakemake.config["scenario"]["opts"]).group(1))
+    elif regex in snakemake.config["scenario"]["sector_opts"]:
+        sec_res = int(re.search(regex, snakemake.config["scenario"]["sector_opts"]).group(1))
+        if sec_res != resolution:
+            raise ValueError("Different resolutions in opts and sector_opts are not supported.")
+    else:
+        resolution = 1
+    
+
     # Get globally difficult periods
     period_config = snakemake.config["difficult_periods"]
     period_collection = [
@@ -224,6 +248,7 @@ if __name__ == "__main__":
             T=period_config["min_cost"],
             min_length=period_config["min_length"],
             max_length=period_config["max_length"],
+            resolution=resolution,
         )
         for n in ns
     ]
