@@ -29,7 +29,7 @@ rule solve_network:
     threads: solver_threads
     resources:
         mem_mb=memory,
-        runtime=config_provider("solving", "runtime", default="6h"),
+        runtime=config_provider("solving", "runtime", default="6:00:00"),
     shadow:
         "shallow"
     conda:
@@ -67,7 +67,7 @@ rule solve_operations_network:
     threads: 4
     resources:
         mem_mb=(lambda w: 10000 + 372 * int(w.clusters)),
-        runtime=config_provider("solving", "runtime", default="6h"),
+        runtime=config_provider("solving", "runtime", default="6:00:00"),
     shadow:
         "shallow"
     conda:
