@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2023-4 Aleksander Grochowicz & Koen van Greevenbroek
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: notebook_analysis
+channels:
+  - conda-forge
+  - bioconda
+  - http://conda.anaconda.org/gurobi
+dependencies:
+  # Basics
+  - python
+  - pip
+  - mamba
+
+  # Needed for notebooks
+  - ipython
+  - ipykernel
+
+  # Pypsa, gurobi
+  - pypsa>=0.22
+  - gurobi
+
+  # Scientific computing
+  - seaborn
+  - pyyaml
+  - numpy
+  - pandas
+  - geopandas
+
+  - netcdf4
+
+  # For Hannah's data
+  - iris
+
+  - pip:
+    - vresutils
+    
+
