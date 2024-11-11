@@ -177,8 +177,19 @@ if __name__ == "__main__":
     set_scenario_config(snakemake)
 
     params_hydro = snakemake.params.hydro
+    # We need to take the two full years for hydropower inflow, i.e. if we have snapshots across two 
+    # calendar years, we need to start on 01-01 of year 1 and end on 31-12 of year 2.
+    # Only later we actually select the correct snapshots.
 
-    time = get_snapshots(snakemake.params.snapshots, snakemake.params.drop_leap_day)
+    snapshots_time = get_snapshots(snakemake.params.snapshots, snakemake.params.drop_leap_day)
+    # time = get_snapshots(snakemake.params.snapshots, snakemake.params.drop_leap_day)
+    if snapshots_time[0].year != snapshots_time[-1].year:
+        # Add full years for both years.
+        time = pd.date_range(
+            start=f"{snapshots_time[0].year}-01-01",
+            end=f"{snapshots_time[-1].year}-12-31",
+            freq="H",
+        )
 
     cutout = atlite.Cutout(snakemake.input.cutout).sel(time=time)
 
@@ -211,6 +222,7 @@ if __name__ == "__main__":
     elif missing_years.any():
         eia_stats.loc[missing_years] = eia_stats.median()
 
+
     inflow = cutout.runoff(
         shapes=country_shapes,
         smooth=True,
@@ -220,5 +232,8 @@ if __name__ == "__main__":
 
     if "clip_min_inflow" in params_hydro:
         inflow = inflow.where(inflow > params_hydro["clip_min_inflow"], 0)
+
+    # Only select the correct snapshots.
+    inflow = inflow.sel(time=snapshots_time)
 
     inflow.to_netcdf(snakemake.output.profile)
