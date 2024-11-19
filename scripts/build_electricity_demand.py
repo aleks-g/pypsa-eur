@@ -135,6 +135,7 @@ def copy_timeslice(load, cntry, start, stop, delta, fn_load=None):
             load.loc[start:stop, cntry] = load_raw.loc[
                 start - delta : stop - delta, cntry
             ].values
+        
 
 
 def manual_adjustment(load, fn_load, countries):
@@ -250,6 +251,19 @@ def manual_adjustment(load, fn_load, countries):
         copy_timeslice(
             load, "UA", "2013-10-28 03:00", "2013-10-28 20:00", Delta(weeks=1)
         )
+
+    copy_timeslice(load, "SK", "2020-08-08 09:00", "2020-08-08 15:00", Delta(weeks=1))
+    copy_timeslice(load, "SK", "2016-12-12 14:00", "2016-12-12 23:00", Delta(weeks=-1))
+    copy_timeslice(load, "SK", "2020-02-01 20:00", "2020-02-01 21:00", Delta(hours=-1))
+
+    copy_timeslice(load, "MK", "2018-12-13 09:00", "2018-12-13 10:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2016-06-23 19:00", "2016-06-23 20:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2016-07-26 16:00", "2016-07-26 17:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2016-04-22 19:00", "2016-04-22 20:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2018-09-19 23:00", "2018-09-20 00:00", Delta(hours=1))
+    copy_timeslice(load, "MK", "2015-12-27 02:00", "2015-12-27 03:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2015-12-27 03:00", "2015-12-27 04:00", Delta(hours=-2))
+
 
     return load
 
