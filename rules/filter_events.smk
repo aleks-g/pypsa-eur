@@ -24,8 +24,7 @@ rule difficult_periods:
     output:
         "results/periods/sde_{scen_name}_{clusters}_elec_l{ll}_{opts}.csv"
     log:
-        python=RESULTS
-        + "logs/difficult_periods/sde_{scen_name}_{clusters}_elec_l{ll}_{opts}_python.log", 
+        python="results/logs/difficult_periods/sde_{scen_name}_{clusters}_elec_l{ll}_{opts}_python.log", 
     benchmark:
         "results/benchmarks/difficult_periods/sde_{scen_name}_{clusters}_elec_l{ll}_{opts}"
     threads: 1
