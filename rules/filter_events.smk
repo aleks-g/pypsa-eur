@@ -2,6 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 
+import yaml
+
+def load_operational_years(file_path):
+    with open(file_path, 'r') as file:
+        return list(yaml.safe_load(file).keys())
+
 # For now, only for the electricity sector.
 rule all_difficult_periods:
     input:
@@ -11,7 +17,6 @@ rule all_difficult_periods:
             run=config["run"]["name"],
             scen_name=config["difficult_periods"]["scen_name"]
         ),
-
 
 rule difficult_periods:
     input:
@@ -34,6 +39,13 @@ rule difficult_periods:
         "../envs/environment.yaml"
     script:
         "../scripts/difficult_periods.py" 
+
+
+
+
+
+
+
 
 
 
