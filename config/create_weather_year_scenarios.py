@@ -8,7 +8,7 @@
 if "snakemake" in globals():
     filename = snakemake.output[0]
 else:
-    filename = "weather_scenarios.yaml"
+    filename = "weather_scenarios_cutouts.yaml"
 
 import itertools
 
@@ -19,9 +19,9 @@ weather_year_{year}:
     end: "{end_year}-06-30 23:00"
     inclusive: "both"
   atlite:
-    default_cutout: europe-era5_1980-2020
+    default_cutout: europe-1941-1960-era5
     cutouts:
-      europe-era5_1980-2020:
+      europe-1941-1960-era5:
         module: era5
         x: [-12., 42.]
         y: [33., 72]
@@ -30,14 +30,85 @@ weather_year_{year}:
         time: ['{year}', '{end_year}']
 """
 
-config_values = dict(year=range(1980, 2020), end_year = range(1981, 2021))
+template_steps = """
+weather_year_{year}:
+  snapshots:
+    start: "{year}-07-01 00:00"
+    end: "{end_year}-06-30 23:00"
+    inclusive: "both"
+  atlite:
+    default_cutout: europe-{step_start}-{step_end}-era5
+    cutouts:
+      europe-{step_start}-{step_end}-era5:
+        module: era5
+        x: [-12., 42.]
+        y: [33., 72]
+        dx: 0.3
+        dy: 0.3
+        time: ['{year}', '{end_year}']
+  renewable:
+    onwind:
+      cutout: europe-{step_start}-{step_end}-era5
+    offwind-ac:
+      cutout: europe-{step_start}-{step_end}-era5
+    offwind-dc:
+      cutout: europe-{step_start}-{step_end}-era5
+    offwind-float:
+      cutout: europe-{step_start}-{step_end}-era5
+    solar:
+      cutout: europe-{step_start}-{step_end}-era5
+    solar-hsat:
+      cutout: europe-{step_start}-{step_end}-era5
+    hydro:
+      cutout: europe-{step_start}-{step_end}-era5
+  solar_thermal:
+    cutout: europe-{step_start}-{step_end}-era5
+  sector:
+    heat_demand_cutout: europe-{step_start}-{step_end}-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-{step_start}-{step_end}-era5
+"""
+
+first_year = 1941
+last_year = 2021
+
+# Counterintuitive but this is what works.
+config_values = dict(year=range(first_year,last_year + 1), end_year = range(first_year + 1, last_year + 1))
 
 combinations = [
-    dict(zip(config_values.keys(), values))
-    for values in itertools.product(*config_values.values())
-    if values[0] +1 == values[1]
-]
+      dict(zip(config_values.keys(), values))
+      for values in itertools.product(*config_values.values())
+      if values[0] +1 == values[1]
+  ]
 
-with open(filename, "w") as f:
-    for i, config in enumerate(combinations):
-        f.write(template.format(scenario_number=i, **config))
+
+steps = True
+step_size = 5
+
+if steps:
+  combinations_fys = []
+  for i, config in enumerate(combinations):
+      # Assign config["year"] to the right step.
+      if config["year"] - first_year < step_size:
+          step = 0
+      else:
+          step = (config["year"] - first_year) // step_size
+      config["step_start"] = step * step_size + first_year
+      config["step_end"] = config["step_start"] + step_size
+      if config["step_end"] > last_year:
+          config["step_end"] = last_year
+      combinations_fys.append(config)
+  with open(filename, "w") as f:
+      for i, config in enumerate(combinations_fys):
+          f.write(template_steps.format(**config))
+  
+
+
+
+
+else:
+
+  with open(filename, "w") as f:
+      for i, config in enumerate(combinations):
+          f.write(template.format(scenario_number=i, **config))

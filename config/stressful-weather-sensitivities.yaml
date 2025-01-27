@@ -26,7 +26,7 @@ difficult_periods:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "stressful-weather"
+  prefix: "stressful-weather-sensitivities"
   name: "all"
   scenarios:
     enable: true
@@ -44,11 +44,32 @@ foresight: overnight
 # Wildcard docs in https://pypsa-eur.readthedocs.io/en/latest/wildcards.html
 scenario:
   ll:
+  - c1.0
   - c1.25 # possibly more?
+  # - c1.5
+  - c2
+  # - c3
   clusters:
   - 90
   opts:
   - 'Co2L'
+  # - 'Co2L0.01'
+  - 'Co2L0.05'
+  - 'Co2L-EQ0.7'
+  # - 'Co2L-EQ0.8'
+  - 'Co2L-EQ0.9'
+  # - 'Co2L-EQ0.95'
+  # - 'Co2L-EQ1'
+  # - 'Co2L0.01-EQ0.7'
+  # - 'Co2L0.01-EQ0.8'
+  # - 'Co2L0.01-EQ0.9'
+  # - 'Co2L0.01-EQ0.95'
+  # - 'Co2L0.01-EQ1'
+  - 'Co2L0.05-EQ0.7'
+  # - 'Co2L0.05-EQ0.8'
+  - 'Co2L0.05-EQ0.9'
+  # - 'Co2L0.05-EQ0.95'
+  # - 'Co2L0.05-EQ1'
   sector_opts:
   - ''
   planning_horizons:
@@ -108,7 +129,7 @@ electricity:
     H2: 168
 
   extendable_carriers:
-    Generator: [solar, solar-hsat, onwind, offwind-ac, offwind-dc, offwind-float, ] # OCGT, CCGT # we had no offshore-floating and solar-hsat? 
+    Generator: [solar, solar-hsat, onwind, offwind-ac, offwind-dc, offwind-float, OCGT, CCGT] # OCGT, CCGT # we had no offshore-floating and solar-hsat? 
     StorageUnit: [] # battery, H2
     Store: [battery, H2] # probably we'd want this?
     Link: [] # H2 pipeline
@@ -117,7 +138,7 @@ electricity:
   custom_powerplants: false
   everywhere_powerplants: []
 
-  conventional_carriers: [nuclear, biomass] # oil, OCGT, CCGT, coal, lignite, geothermal,
+  conventional_carriers: [nuclear, biomass, OCGT, CCGT] # oil, OCGT, CCGT, coal, lignite, geothermal,
   renewable_carriers: [solar, solar-hsat, onwind, offwind-ac, offwind-dc, offwind-float, hydro]
 
 
@@ -366,6 +387,8 @@ pypsa_eur:
   - solar
   - ror
   - nuclear
+  - OCGT
+  - CCGT
   StorageUnit:
   - PHS
   - hydro
