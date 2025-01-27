@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2023 Koen van Greevenbroek & Aleksander Grochowicz
+# SPDX-FileCopyrightText: 2024 Aleksander Grochowicz & Koen van Greevenbroek
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -12,13 +12,28 @@ if __name__ == "__main__":
     # Load input networks
     ns = [pypsa.Network(i) for i in snakemake.input]
 
+    ns_wind_cf = []
+    ns_solar_cf = []
+
+    # Collect all generators, as the clustering might have led to different network layouts.
+    for n in ns:
+        wind_i = n.generators.index[
+            n.generators.carrier.isin(["onwind", "offwind-ac", "offwind-dc", "offwind-float"])
+        ]
+        solar_i = n.generators.index[n.generators.carrier.isin(["solar", "solar-hsat"])]
+
+        ns_wind_cf.append(n.generators_t.p_max_pu.loc[:, wind_i])
+        ns_solar_cf.append(n.generators_t.p_max_pu.loc[:, solar_i])
+
+    # Only take the intersection of all generators across the networks.
+    wind_i = list(set.intersection(*[set(df.columns) for df in ns_wind_cf]))
+    solar_i = list(set.intersection(*[set(df.columns) for df in ns_solar_cf]))
+
+
     # Compute mean wind capacity factors over all years
-    wind_i = ns[0].generators.index[
-        ns[0].generators.carrier.isin(["onwind", "offwind-ac", "offwind-dc", "offwind-float"])
-    ]
     wind_cf = pd.DataFrame(
         sum(
-            [n.generators_t.p_max_pu.loc[:, wind_i].values for n in ns],
+            [df.loc[:, wind_i].values for df in ns_wind_cf],
         )
         / len(ns),
         columns=wind_i,
@@ -37,10 +52,9 @@ if __name__ == "__main__":
     wind_cf_mean.to_csv(snakemake.output.wind)
 
     # Compute mean solar capacity factors over all years
-    solar_i = ns[0].generators.index[ns[0].generators.carrier.isin(["solar", "solar-hsat"])]
     solar_cf = pd.DataFrame(
         sum(
-            [n.generators_t.p_max_pu.loc[:, solar_i].values for n in ns],
+            [df.loc[:, solar_i].values for df in ns_solar_cf],
         )
         / len(ns),
         columns=solar_i,
