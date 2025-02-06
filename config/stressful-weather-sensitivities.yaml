@@ -52,14 +52,14 @@ scenario:
   clusters:
   - 90
   opts:
-  - 'Co2L'
+  - 'Co2L0.0'
   # - 'Co2L0.01'
   - 'Co2L0.05'
-  - 'Co2L-EQ0.7'
-  # - 'Co2L-EQ0.8'
-  - 'Co2L-EQ0.9'
-  # - 'Co2L-EQ0.95'
-  # - 'Co2L-EQ1'
+  - 'Co2L0.0-EQ0.7'
+  # - 'Co2L0.0-EQ0.8'
+  - 'Co2L0.0-EQ0.9'
+  # - 'Co2L0.0-EQ0.95'
+  # - 'Co2L0.0-EQ1'
   # - 'Co2L0.01-EQ0.7'
   # - 'Co2L0.01-EQ0.8'
   # - 'Co2L0.01-EQ0.9'
