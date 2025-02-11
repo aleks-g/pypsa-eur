@@ -260,7 +260,7 @@ def manual_adjustment(load, fn_load, countries):
     copy_timeslice(load, "MK", "2016-06-23 19:00", "2016-06-23 20:00", Delta(hours=-1))
     copy_timeslice(load, "MK", "2016-07-26 16:00", "2016-07-26 17:00", Delta(hours=-1))
     copy_timeslice(load, "MK", "2016-04-22 19:00", "2016-04-22 20:00", Delta(hours=-1))
-    copy_timeslice(load, "MK", "2018-09-19 23:00", "2018-09-20 00:00", Delta(hours=1))
+    copy_timeslice(load, "MK", "2018-09-19 23:00", "2018-09-20 00:00", Delta(weeks=-1))
     copy_timeslice(load, "MK", "2015-12-27 02:00", "2015-12-27 03:00", Delta(hours=-1))
     copy_timeslice(load, "MK", "2015-12-27 03:00", "2015-12-27 04:00", Delta(hours=-2))
 
