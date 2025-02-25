@@ -97,7 +97,7 @@ if __name__ == "__main__":
         load_shedding = n.generators_t.p.filter(like="load", axis="columns")
 
         # Remove "battery load" and "H2 load".
-        load_shedding = load_shedding.loc[:,~load_shedding.columns.str.contains("battery|H2")]
+        load_shedding = load_shedding.loc[:,~load_shedding.columns.str.contains("battery|H2")].round(0)
 
         # Export the results.
         load_shedding.to_csv(snakemake.output.load_shedding)

@@ -269,9 +269,10 @@ if __name__ == "__main__":
     periods.reset_index(drop=True, inplace=True)
 
     # Explicitly specify that the timezone is UTC
-    periods.start = periods.start.dt.tz_localize(tz="UTC")
-    periods.end = periods.end.dt.tz_localize(tz="UTC")
-    periods.peak_hour = periods.peak_hour.dt.tz_localize(tz="UTC")
+    if len(periods) > 0:
+        periods.start = periods.start.dt.tz_localize(tz="UTC")
+        periods.end = periods.end.dt.tz_localize(tz="UTC")
+        periods.peak_hour = periods.peak_hour.dt.tz_localize(tz="UTC")
 
     # Save the extreme events.
     periods.to_csv(snakemake.output[0])
