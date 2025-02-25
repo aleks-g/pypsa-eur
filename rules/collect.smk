@@ -22,7 +22,7 @@ localrules:
 rule all_operational_years:
     input:
         expand(
-            RESULTS + "networks/{operational_year}_base_s_{clusters}_elec_l{ll}_{opts}.nc",
+            RESULTS + "validation/{operational_year}_base_s_{clusters}_elec_l{ll}_{opts}.csv",
             operational_year=load_operational_years(config["run"]["scenarios"]["file"]),
             **config["scenario"],
             run=config["run"]["name"],
