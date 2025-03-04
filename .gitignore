@@ -20,7 +20,10 @@ slurm*
 /networks
 /benchmarks
 /logs
-/notebooks
+
+/notebooks/*
+!/notebooks/nb_scripts
+
 /data
 /cutouts
 /tmp
