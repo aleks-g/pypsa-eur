@@ -23,6 +23,7 @@ slurm*
 
 /notebooks/*
 !/notebooks/nb_scripts
+!/notebooks/*.py
 
 /data
 /cutouts
