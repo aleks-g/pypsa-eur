@@ -1,4 +1,9 @@
-# Processing of load shedding
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Process the load shedding data from the validation when operating the optimal networks.
+"""
 
 import pandas as pd
 import numpy as np
@@ -12,7 +17,7 @@ if __name__ == "__main__":
     # Following the load_opt_networks function in notebook_utilities, without loading the networks.
     config_name = "stressful-weather"
     with open(f"../config/{config_name}.yaml", "r") as file:
-            config = yaml.safe_load(file)
+        config = yaml.safe_load(file)
 
     # Load scenario definition
     scenario_file = config["run"]["scenarios"]["file"]

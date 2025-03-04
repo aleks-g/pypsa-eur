@@ -1,29 +1,29 @@
-# Initiation
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 
-import pypsa 
-import datetime as dt 
+"""Plot the dashboard for system-defining events."""
 
+import datetime as dt
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union, Any
+
+import numpy as np
+import pandas as pd
+import pypsa
 import yaml
+import xarray as xr
+from scipy.stats import gaussian_kde, wasserstein_distance
+from scipy.spatial import ConvexHull
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.path import Path
-
-mpl.rcParams["figure.dpi"] = 150
-
-import pandas as pd
-import numpy as np
-import seaborn as sns
-import xarray as xr
-from scipy.stats import gaussian_kde
-from scipy.stats import wasserstein_distance
-from scipy.spatial import ConvexHull
-
-from matplotlib.ticker import (AutoMinorLocator, MultipleLocator, FormatStrFormatter,AutoMinorLocator)
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 import matplotlib.dates as mdates
 from matplotlib.path import Path
 from matplotlib.lines import Line2D
 import matplotlib.colors as mcolors
+import seaborn as sns
 
 import geopandas as gpd
 import cartopy
@@ -42,18 +42,36 @@ logging.getLogger("pypsa.io").setLevel(logging.ERROR)
 cm = 1 / 2.54  # centimeters in inches
 
 def collect_annual_values(
-    ranked_years,
-    annual_cfs,
-    winter_load,
-    total_costs,
-    flex_caps,
-    years
-):
-    """Collect the following annual values:
-    - Ranks of the distinct years by system costs, design year and operational year.
-    - Solar and wind CFs and winter load.
-    - Total costs of each year.
-    - Capacity of battery dischargers and fuel cells."""
+    ranked_years: pd.DataFrame,
+    annual_cfs: pd.DataFrame,
+    winter_load: pd.DataFrame,
+    total_costs: Dict[int, pd.Series],
+    flex_caps: pd.DataFrame,
+    years: List[int]
+) -> pd.DataFrame:
+    """
+    Collect annual values for dashboard display.
+    
+    Parameters:
+    -----------
+    ranked_years: pd.DataFrame
+        Ranks of years by system costs, design year, and operational year
+    annual_cfs: pd.DataFrame
+        Solar and wind capacity factors per year
+    winter_load: pd.DataFrame
+        Winter load data
+    total_costs: Dict[int, pd.Series]
+        Total costs of each year
+    flex_caps: pd.DataFrame
+        Capacity of battery dischargers and fuel cells
+    years: List[int]
+        Years to process
+        
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame containing collected annual values
+    """
     annual_values = pd.DataFrame(index = years).astype(float)
 
     annual_values["ranked_costs"] = ranked_years["System costs"]
@@ -71,11 +89,30 @@ def collect_annual_values(
     return annual_values
 
 def load_hull_data(
-    config_name,
-    periods,
-    techs,
-    thres
-):
+    config_name: str,
+    periods: pd.DataFrame,
+    techs: List[str],
+    thres: List[float]
+) -> Dict[str, List[ConvexHull]]:
+    """
+    Load hull data for different technologies and thresholds.
+    
+    Parameters:
+    -----------
+    config_name: str
+        Configuration name
+    periods: pd.DataFrame
+        DataFrame with periods information
+    techs: List[str]
+        List of technologies to load hulls for
+    thres: List[float]
+        List of thresholds corresponding to each technology
+        
+    Returns:
+    --------
+    Dict[str, List[ConvexHull]]
+        Dictionary mapping technologies to lists of convex hulls
+    """
     """Load the hull data for the different technologies and thresholds."""
     hulls = {tech: [] for tech in techs}
     for tech, t in zip(techs, thres):
@@ -106,8 +143,31 @@ def plot_dashboard(
     freq,
     save = False,
 ):
-    """"""
+    """
+    Plot a dashboard with KPIs, map, annual stats, and generation stack plot.
 
+    Parameters:
+    - config_name: str, name of the configuration.
+    - event_nr: int, event number.
+    - stats_periods: DataFrame, statistics of periods.
+    - annual_values: DataFrame, annual values.
+    - kpis: list, key performance indicators.
+    - kpi_names: list, names of the KPIs.
+    - hulls_coll: dict, hull data for different technologies.
+    - hulls_markers_names: list, names of the hull markers.
+    - fc_flex: DataFrame, fuel cell flexibility data.
+    - onshore_regions: GeoDataFrame, onshore regions data.
+    - n: Network, PyPSA network object.
+    - projection: cartopy.crs.Projection, map projection.
+    - categories: list, categories for the annual stats.
+    - cat_names: list, names of the categories.
+    - label_names: dict, label names for the categories.
+    - gen_stacks: DataFrame, generation stack data.
+    - time_window: Timedelta, time window for the generation stack plot.
+    - total_load: DataFrame, total load data.
+    - freq: str, frequency for resampling the data.
+    - save: bool, whether to save the plot.
+    """
     fig, axd = plt.subplot_mosaic(
     mosaic = [["kpi", "map", "stats"], ["gen", "gen", "gen"]],
     width_ratios=[1, 1, 1],

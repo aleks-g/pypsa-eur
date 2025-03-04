@@ -1,33 +1,155 @@
-import pypsa 
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Gather functions that we use in the notebooks for analysing the networks.
+Returns:
+--------
+float
+    The annual variable costs in the network.
+"""
+
 import datetime as dt 
-# import os
-# import sys
 import yaml
+import pypsa
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.path import Path
-
 mpl.rcParams["figure.dpi"] = 150
 
 import pandas as pd
 import numpy as np
-
 import seaborn
 
-
-from matplotlib.ticker import (AutoMinorLocator, MultipleLocator, FormatStrFormatter,AutoMinorLocator)
+from matplotlib.ticker import (AutoMinorLocator, MultipleLocator, FormatStrFormatter)
 import matplotlib.dates as mdates
-from matplotlib.path import Path
 from matplotlib.lines import Line2D
 
 from typing import NamedTuple, Optional
 
 
-
 ## COMPUTATIONS AND INITIATION
 
 cm = 1/2.54
+
+def annual_variable_cost(
+    n: pypsa.Network,
+) -> float:
+    """Compute the annual variable costs in a PyPSA network `n`. Don't count load shedding.
+    
+    Parameters:
+    -----------
+    n:  PyPSA network.
+    """
+    weighting = n.snapshot_weightings.objective
+    total = 0
+    # Add variable costs for generators
+    i = n.generators.loc[n.generators.carrier != "load-shedding"].index
+    total += (
+        n.generators_t.p[i].multiply(weighting, axis=0).sum(axis=0)
+        * n.generators.marginal_cost
+    ).sum()
+    # Add variable costs for links (lines have none), in our model all 0 though?
+    total += (
+        n.links_t.p0[n.links.index].abs().multiply(weighting, axis=0).sum(axis=0)
+        * n.links.marginal_cost
+    ).sum()
+    # Add variable costs for stores
+    total += (
+        n.stores_t.p[n.stores.index].abs().multiply(weighting, axis=0).sum(axis=0)
+        * n.stores.marginal_cost
+    ).sum()
+    # Add variable costs for storage units
+    total += (
+        n.storage_units_t.p[n.storage_units.index]
+        .abs()
+        .multiply(weighting, axis=0)
+        .sum(axis=0)
+        * n.storage_units.marginal_cost
+    ).sum()
+    # Divide by the number of years the network is defined over. We disregard
+    # leap years.
+    total /= n.snapshot_weightings.objective.sum() / 8760
+    return total
+
+def compute_all_duals(
+    opt_networks: dict,
+    storage_units: bool = False,
+    by_node: bool = False,
+):
+    '''Compute the duals for the electricity costs, storage costs and fuel cell costs.
+
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary of PyPSA networks.
+    storage_units: bool
+        If True, storage units are considered, otherwise stores.
+    by_node: bool
+        If True, return the costs by node.
+    '''
+    years = list(opt_networks.keys())
+    # Electricity costs
+    all_prices = pd.concat([
+        opt_networks[y].buses_t["marginal_price"] for y in years
+    ])
+    nodal_costs = {
+        y: opt_networks[y].buses_t["marginal_price"] * opt_networks[y].loads_t["p_set"]
+        for y in years
+    }
+
+    # Storage costs
+    if storage_units:
+        nodal_storage_costs = {
+            y: opt_networks[y].storage_units_t["mu_energy_balance"] * opt_networks[y].storage_units_t["state_of_charge"]
+        for y in years
+        }
+    else:
+        nodal_storage_costs = {
+            y: opt_networks[y].stores_t["mu_energy_balance"] * opt_networks[y].stores_t["e"]
+        for y in years
+        }
+    # Fuel cell costs, only if storage units are not present
+    if not storage_units:
+        prod = {}
+        shadow_price_fc = {}
+        for y, n in opt_networks.items():
+            fc_i = n.links.filter(like="H2 Fuel Cell", axis="rows").index
+            prod[y] = n.links_t.p0.loc[:,fc_i]
+            # Set to 0, whenever production is below 0.1 [MW].
+            prod[y] = prod[y].where(prod[y] > 0.1, 0)
+            shadow_price_fc[y] = -n.links_t.mu_upper.loc[:,fc_i]
+        
+        nodal_fc_costs = {y: prod[y] * shadow_price_fc[y] for y in years}
+    if by_node:
+        if storage_units:
+            return nodal_costs, nodal_storage_costs
+        else:
+            return nodal_costs, nodal_storage_costs, nodal_fc_costs
+    else:
+        total_costs = {y: C.sum(axis="columns") for y, C in nodal_costs.items()}
+        total_storage_costs = {y: C.sum(axis="columns") for y, C in nodal_storage_costs.items()}
+        if storage_units:
+            return total_costs, total_storage_costs
+        else:
+            total_fc_costs = {y: C.sum(axis="columns") for y, C in nodal_fc_costs.items()}
+            return total_costs, total_storage_costs, total_fc_costs
+
+# Get network for a given date. Here, opt_networks[n] is defined over the period n-07-01 to (n+1)-06-30.
+def get_net_year(date):
+    """Get the year of the period from the date.
+    """
+    year = date.year
+    if date.month < 7:
+        year -= 1
+    return year
+
+def get_year_period(row):
+    """Get the year of the period from the start date.
+    """
+    return get_net_year(row["start"])
+    
 
 
 def load_opt_networks(
@@ -35,7 +157,17 @@ def load_opt_networks(
     config_str: str = "base_s_90_elec_lc1.25_Co2L",
     load_networks: bool = True,
 ):
-    '''Load the configuration, scenario definition, years and optimal networks.'''
+    '''Load the configuration, scenario definition, years and optimal networks.
+    
+    Parameters:
+    -----------
+    config_name: str
+        Name of the configuration file.
+    config_str: str
+        String defining the configuration options.
+    load_networks: bool
+        If True, load the optimal networks.
+    '''
 
     # Load the configuration
     with open(f"../config/{config_name}.yaml", "r") as file:
@@ -77,103 +209,7 @@ def load_periods(config: dict):
         periods[col] = periods[col].dt.tz_localize(None)
     return periods
 
-def compute_all_duals(
-    opt_networks: dict,
-    storage_units: bool = False,
-    by_node: bool = False,
-):
-    '''Compute the duals for the electricity costs, storage costs and fuel cell costs.'''
-    years = list(opt_networks.keys())
 
-
-    # Electricity costs
-    all_prices = pd.concat([
-        opt_networks[y].buses_t["marginal_price"] for y in years
-    ])
-    nodal_costs = {
-        y: opt_networks[y].buses_t["marginal_price"] * opt_networks[y].loads_t["p_set"]
-        for y in years
-    }
-
-    # Storage costs
-    if storage_units:
-        nodal_storage_costs = {
-            y: opt_networks[y].storage_units_t["mu_energy_balance"] * opt_networks[y].storage_units_t["state_of_charge"]
-        for y in years
-        }
-    else:
-        nodal_storage_costs = {
-            y: opt_networks[y].stores_t["mu_energy_balance"] * opt_networks[y].stores_t["e"]
-        for y in years
-        }
-    
-    # Fuel cell costs, only if storage units are not present
-
-    if not storage_units:
-        prod = {}
-        shadow_price_fc = {}
-        for y, n in opt_networks.items():
-            fc_i = n.links.filter(like="H2 Fuel Cell", axis="rows").index
-            prod[y] = n.links_t.p0.loc[:,fc_i]
-            # Set to 0, whenever production is below 0.1 [MW].
-            prod[y] = prod[y].where(prod[y] > 0.1, 0)
-            shadow_price_fc[y] = -n.links_t.mu_upper.loc[:,fc_i]
-        
-        nodal_fc_costs = {y: prod[y] * shadow_price_fc[y] for y in years}
-
-
-
-
-    if by_node:
-        if storage_units:
-            return nodal_costs, nodal_storage_costs
-        else:
-            return nodal_costs, nodal_storage_costs, nodal_fc_costs
-    
-
-    else:
-        total_costs = {y: C.sum(axis="columns") for y, C in nodal_costs.items()}
-        total_storage_costs = {y: C.sum(axis="columns") for y, C in nodal_storage_costs.items()}
-        if storage_units:
-            return total_costs, total_storage_costs
-        else:
-            total_fc_costs = {y: C.sum(axis="columns") for y, C in nodal_fc_costs.items()}
-            return total_costs, total_storage_costs, total_fc_costs
-
-def annual_variable_cost(
-    n: pypsa.Network,
-) -> float:
-    """Compute the annual variable costs in a PyPSA network `n`. Don't count load shedding."""
-    weighting = n.snapshot_weightings.objective
-    total = 0
-    # Add variable costs for generators
-    i = n.generators.loc[n.generators.carrier != "load-shedding"].index
-    total += (
-        n.generators_t.p[i].multiply(weighting, axis=0).sum(axis=0)
-        * n.generators.marginal_cost
-    ).sum()
-    # Add variable costs for links (lines have none), in our model all 0 though?
-    total += (
-        n.links_t.p0[n.links.index].abs().multiply(weighting, axis=0).sum(axis=0)
-        * n.links.marginal_cost
-    ).sum()
-    # Add variable costs for stores
-    total += (
-        n.stores_t.p[n.stores.index].abs().multiply(weighting, axis=0).sum(axis=0)
-        * n.stores.marginal_cost
-    ).sum()
-    # Add variable costs for storage units
-    total += (
-        n.storage_units_t.p[n.storage_units.index]
-        .abs()
-        .multiply(weighting, axis=0)
-        .sum(axis=0)
-        * n.storage_units.marginal_cost
-    ).sum()
-    # Divide by the number of years the network is defined over. We disregard
-    # leap years.
-    total /= n.snapshot_weightings.objective.sum() / 8760
-    return total
 
 
 def optimal_costs(
@@ -183,7 +219,18 @@ def optimal_costs(
               "onwind": "Onshore wind", "offwind": "Offshore wind", "solar": "Solar", "H2": "Hydrogen", "battery": "Battery"},
     storage_units: bool = False,
 ):
-    '''Compute the optimal costs for the optimal networks. Some hard-coded feature'''
+    '''Compute the optimal costs for the optimal networks. Some hard-coded features.
+    
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary of PyPSA networks.
+    techs: list
+        List of technologies to consider.
+    pretty_names: dict
+        Dictionary of pretty names for the technologies.
+    storage_units: bool
+        If True, storage units are considered, otherwise stores.'''
     years = list(opt_networks.keys())
     opt_objs = pd.DataFrame(index=years, columns=techs)
     vres = ["onwind", "offwind-ac", "offwind-dc", "solar", "offwind-float", "solar-hsat"]
@@ -228,31 +275,25 @@ def optimal_costs(
     # should be equal to the sum of the individual objective values.
     obj_totals = pd.DataFrame(index=years, columns=["total"])
     obj_totals["total"] = [n.objective for n in opt_networks.values()]
-
     opt_objs = opt_objs.rename(pretty_names, axis='columns')
-
     # Change the index to the form "80/81"
     opt_objs.index = [f"{str(y)[-2:]}/{str(y+1)[-2:]}" for y in opt_objs.index]
-
     return opt_objs, obj_totals
 
 
-# Get network for a given date. Here, opt_networks[n] is defined over the period n-07-01 to (n+1)-06-30.
-def get_net_year(date):
-    year = date.year
-    if date.month < 7:
-        year -= 1
-    return year
 
-def get_year_period(row):
-    return get_net_year(row["start"])
-    
 
 
 ## FLEXIBILITY CALCULATIONS
 
 # Flexibility in use (system-wide)
 def calculate_transmission_in_use(n):
+    """Calculate the in-use ratios and capacities for transmission.
+
+    Parameters:
+    -----------
+    n: PyPSA network.
+    """
     # Transmission links
     dc_i = n.links[n.links.carrier == "DC"].index
     dc_p_nom = n.links.loc[dc_i].p_nom_opt
@@ -269,6 +310,12 @@ def calculate_transmission_in_use(n):
     return transmission_in_use, transmission_p_nom
 
 def calculate_dispatchable_in_use(n):
+    """Calculate the in-use ratios and capacities for dispatchable technologies.
+
+    Parameters:
+    -----------
+    n: PyPSA network.
+    """
     # Dispatchable technologies
     biomass_i = n.generators[n.generators.carrier == "biomass"].index
     nuclear_i = n.generators[n.generators.carrier == "nuclear"].index
@@ -289,6 +336,12 @@ def calculate_dispatchable_in_use(n):
     return dispatchable_in_use, dispatchable_p_nom
 
 def calculate_storage_discharge_in_use(n):
+    """Calculate the in-use ratios and capacities for storage discharge technologies.
+
+    Parameters:
+    -----------
+    n: PyPSA network.
+    """
     # Storage discharge
     fuel_cells_i = n.links[n.links.carrier == "H2 fuel cell"].index
     battery_i = n.links[n.links.carrier == "battery discharger"].index
@@ -313,6 +366,12 @@ def calculate_storage_discharge_in_use(n):
 
 
 def coarse_system_flex(m):
+    """Calculate the coarse system flexibility for transmission, dispatchable and storage technologies.
+
+    Parameters:
+    -----------
+    m: PyPSA network.
+    """
     transmission_in_use, transmission_p_nom = calculate_transmission_in_use(m)
     dispatchable_in_use, dispatchable_p_nom = calculate_dispatchable_in_use(m)
     storage_discharge_in_use, storage_p_nom = calculate_storage_discharge_in_use(m)
@@ -326,6 +385,12 @@ def coarse_system_flex(m):
     return system_flex_coarse
 
 def detailed_system_flex(m):
+    """Calculate the detailed system flexibility for the different technologies.
+
+    Parameters:
+    -----------
+    m: PyPSA network.
+    """
     transmission_in_use, transmission_p_nom = calculate_transmission_in_use(m)
     dispatchable_in_use, dispatchable_p_nom = calculate_dispatchable_in_use(m)
     storage_discharge_in_use, storage_p_nom = calculate_storage_discharge_in_use(m)
@@ -368,7 +433,17 @@ def nodal_flexibility(
     nodes: list,
     tech: list = ["DC", "AC", "biomass", "nuclear", "ror", "H2 fuel cell", "battery discharger", "PHS", "hydro"],
     ):
+    """Calculate the nodal flexibility for the different technologies.
 
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary of PyPSA networks.
+    nodes: list
+        List of nodes.
+    tech: list
+        List of technologies.
+    """
     nodal_flex_u = {}
     nodal_flex_p = {}
 
@@ -426,10 +501,343 @@ def nodal_flexibility(
 # NOTE: For ror, we only have limited availability in the different time steps, so the flexibility availability in capacities can be slightly misleading.
 
 
-
-
-
 ## PLOTTING
+
+def plot_cluster_anomalies(
+    flex_anomaly: pd.DataFrame,
+    system_anomaly: pd.DataFrame,
+    periods: pd.DataFrame,
+    cluster_nr: int,
+    clustered_vals: pd.DataFrame,
+    tech: list = ["biomass", "nuclear", "H2 fuel cell", "battery discharger", "PHS", "hydro"],
+    tech_colours: list = ["#baa741", "#ff8c00", "#c251ae", "#ace37f", "#51dbcc", "#298c81"],
+    plot_all_system: bool = True,
+    resampled: str = "1D",
+    save_fig: bool = False,
+    path_str: str = None,
+    cluster_names: list = None,
+):
+    """Plot the flexibility and system anomalies for the different clusters.
+
+    Parameters:
+    -----------
+    flex_anomaly: pd.DataFrame
+        Flexibility anomalies per technology.
+    system_anomaly: pd.DataFrame
+        System anomalies (net load, load, wind, solar).
+    periods: pd.DataFrame
+        System-defining events.
+    cluster_nr: int
+        Number of clusters.
+    clustered_vals: pd.DataFrame
+        Clustered values with stats for each SDE.
+    tech: list
+        List of technologies.
+    tech_colours: list
+        List of colours for the technologies.
+    plot_all_system: bool
+        If True, plot all system anomalies.
+    resampled: str
+        Resampling frequency.
+    save_fig: bool
+        If True, save the figure.
+    path_str: str
+        Path to save the figure.
+    cluster_names: list
+        List of cluster names.
+    """
+    for cluster in range(cluster_nr):
+        nb_plots = len(clustered_vals.loc[clustered_vals["cluster"] == cluster])
+        nb_rows = nb_plots // 4 if nb_plots % 4 == 0 else nb_plots // 4 + 1
+
+        fig, axs = plt.subplots(nb_rows, 4, figsize = (30 * cm, nb_rows * 7 * cm), sharey=True, gridspec_kw={'hspace': 0.6})
+        if len(cluster_names) == cluster_nr:
+            fig.suptitle(f"Cluster {cluster}: {cluster_names[cluster]}", fontsize=16)
+        else:
+            fig.suptitle(f"Cluster {cluster}", fontsize=16)
+
+        for i, event_nr in enumerate(clustered_vals[clustered_vals["cluster"] == cluster].index):
+            ax = axs.flatten()[i]
+            start = periods.loc[event_nr, "start"]
+            end = periods.loc[event_nr, "end"]
+
+            # Plot stack plot of flexibility.
+            p = flex_anomaly.loc[start:end, tech].astype(float).resample(resampled).mean() / 1e3 # in GW
+            p_neg = p.clip(upper=0)
+            p_pos = p.clip(lower=0)
+            ax.stackplot(p_pos.index, p_pos.T, colors=tech_colours, labels=p_pos.columns)
+            ax.stackplot(p_neg.index, p_neg.T, colors=tech_colours)
+            # Plot net load anomaly.
+            net_load = system_anomaly.loc[start:end, "Net load anomaly"].resample(resampled).mean() / 1e3
+            ax.plot(net_load.index, net_load, color="black", lw=1, ls="--", label="Net load anomaly")
+            if plot_all_system:
+                load = system_anomaly.loc[start:end, "Load anomaly"].resample(resampled).mean() / 1e3
+                wind = system_anomaly.loc[start:end, "Wind anomaly"].resample(resampled).mean() / 1e3
+                solar = system_anomaly.loc[start:end, "Solar anomaly"].resample(resampled).mean() / 1e3
+                ax.plot(load.index, load, color="red", lw=1, ls=":", label="Load anomaly")
+                ax.plot(wind.index, wind, color="blue", lw=1, ls=":", label="Wind anomaly")
+                ax.plot(solar.index, solar, color="grey", lw=1, ls=":", label="Solar anomaly")       
+            ax.set_title(f"Event {event_nr}")
+            ax.set_ylabel("Flexibility/Anomaly [GW]")
+            ax.set_xlabel(f"{start.date()} - {end.date()}", fontsize=8)
+            # Set x-ticks to only show day and month
+            ax.xaxis.set_major_locator(mdates.DayLocator())
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
+            # Change font size of x tick labels.
+            ax.tick_params(axis="x", labelsize=8, rotation=90)       
+        # Add legend to the last row between the 2nd and 3rd plot.
+        labels, handles = ax.get_legend_handles_labels()
+        axs.flatten()[-3].legend(
+            labels, handles, loc="center", bbox_to_anchor=(1, -0.6), frameon=False, ncols=4
+        )
+        # Hide empty plots.
+        for ax in axs.flatten()[nb_plots:]:
+            ax.axis("off")
+        if save_fig:
+            if path_str is None:
+                print("Please specify a path to save the figure.")
+            else:
+                plt.savefig(f"{path_str}_cluster_{cluster}.pdf", bbox_inches='tight')
+        else:
+            plt.show();
+
+def plot_duals(
+        periods: pd.DataFrame, 
+        years: list, 
+        left_vals: dict, 
+        right_vals: dict, 
+        left_norm,
+        right_norm, 
+        left_cmap: str = "Blues",
+        right_cmap: str = "Oranges",
+        left_str: str = "Fuel cell costs",
+        right_str: str = "Electricity costs",
+        left_ticks: list = [1, 10, 100],
+        right_ticks: list = [1, 10, 100, 1000, 10000],
+        left_scaling: float = 1e-6,
+        right_scaling: float = 1e-6,
+        save_fig: bool = False,
+        path_str: str = None,
+        alt_periods: Optional[pd.DataFrame] = None,
+    ):
+    """Plot the dual values for the different years and possibly different duals where system-defining events (or other filtered) periods are identified.
+
+    Parameters:
+    -----------
+    periods: pd.DataFrame
+        System-defining events.
+    years: list
+        List of years.
+    left_vals: dict
+        Dictionary of left dual values, e.g. total_costs.
+    right_vals: dict
+        Dictionary of right dual values, e.g. total_costs.
+    left_norm: mpl.colors.Normalize
+        Normalization for the left dual values.
+    right_norm: mpl.colors.Normalize
+        Normalization for the right dual values.
+    left_cmap: str
+        Colormap for the left dual values.
+    right_cmap: str
+        Colormap for the right dual values.
+    left_str: str
+        String for the left dual values.
+    right_str: str
+        String for the right dual values.
+    left_ticks: list
+        Ticks for the left dual values.
+    right_ticks: list
+        Ticks for the right dual values.
+    left_scaling: float
+        Scaling factor for the left dual values.
+    right_scaling: float
+        Scaling factor for the right dual values.
+    save_fig: bool
+        If True, save the figure.
+    path_str: str
+        Path to save the figure.
+    alt_periods: pd.DataFrame
+        Alternative system-defining events to be marked.
+    """
+    fig, axs = plt.subplots(1, 2, figsize=(18 * cm, 18 * cm))
+
+    dates = mdates.date2num(pd.date_range("2014-10-01", "2015-03-31", freq="D").to_pydatetime())
+
+    for ax, year_selection in zip(axs, [years[:(len(years)//2)], years[(len(years)//2):]]):
+        for y in year_selection:
+            # Resample to daily resolution.
+            C = left_vals[y].resample("D").mean()
+            # Drop leap days from C
+            C = C.loc[(C.index.month != 2) | (C.index.day != 29)]
+            # Select only the period from October to March inclusive.
+            C = C.loc[(C.index.month >= 10) | (C.index.month <= 3)]
+            plot_segmented_line(
+                ax, dates, [y - 0.25] * len(C), C * left_scaling, left_cmap, left_norm, lw=4
+            )
+            # Resample to daily resolution.
+            alt_C = right_vals[y].resample("D").mean()
+            # Drop leap days from C
+            alt_C = alt_C.loc[(alt_C.index.month != 2) | (alt_C.index.day != 29)]
+            # Select only the period from October to March inclusive.
+            alt_C = alt_C.loc[(alt_C.index.month >= 10) | (alt_C.index.month <= 3)]
+            plot_segmented_line(
+                ax, dates, [y + 0.25] * len(alt_C), alt_C * right_scaling, right_cmap, right_norm, lw=4
+            )
+        # Draw a horizontal line indicating the duration of each period for the corresponding year, from "start" to "end" date.
+        for i in periods.index:
+            y = get_net_year(periods.loc[i, "start"])
+            # Transpose period start and end to the 2014-2015 winter, then convert using mdates.date2num.
+            start = periods.loc[i, "start"]
+            start = mdates.date2num(
+                dt.datetime(2014 + (start.year - y), start.month, start.day)
+            )
+            end = periods.loc[i, "end"]
+            end = mdates.date2num(dt.datetime(2014 + (end.year - y), end.month, end.day))
+            ax.plot([start, end], [y - 0.12, y - 0.12], c="k", lw=3)  
+        # Do the same for the alternative periods
+        if alt_periods is not None:
+            for i in alt_periods.index:
+                y = get_net_year(alt_periods.loc[i, "start"])
+                # Transpose period start and end to the 2014-2015 winter, then convert using mdates.date2num.
+                start = alt_periods.loc[i, "start"]
+                start = mdates.date2num(
+                    dt.datetime(2014 + (start.year - y), start.month, start.day)
+                )
+                end = alt_periods.loc[i, "end"]
+                end = mdates.date2num(dt.datetime(2014 + (end.year - y), end.month, end.day))
+                ax.plot([start, end], [y + 0.12, y + 0.12], c="royalblue", lw=3)
+        ax.set_xlim(dates[0], dates[-1])
+        ax.set_ylim(year_selection[0] - 0.5, year_selection[-1] + 0.5)
+        # Vertically flip y-axis
+        ax.invert_yaxis()
+        # Display all years as ticks.
+        ax.set_yticks(year_selection)
+        # Format each y tick as 2019/20 instead of 2019 (for example)
+        ax.set_yticklabels([f"{str(y)[2:]}/{str(y + 1)[2:]}" for y in year_selection])
+        # Format x ticks as month names.
+        ax.xaxis.set_major_locator(mdates.MonthLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+        # Remove tick marks
+        ax.tick_params(axis="y", which="both", length=0)
+        # Turn off axis frame
+        ax.set_frame_on(False)
+    # Add a colorbar.
+    cax = fig.add_axes([0.15, 0, 0.3, 0.02])
+    cb = mpl.colorbar.ColorbarBase(cax, cmap=left_cmap, norm=left_norm, orientation="horizontal")
+    cb.set_label(left_str)
+    cb.set_ticks(left_ticks)
+    cb.set_ticklabels([str(t) for t in left_ticks])
+    cax.xaxis.set_minor_locator(mpl.ticker.NullLocator())
+    cax.set_frame_on(False)
+    # Add a colorbar.
+    cax = fig.add_axes([0.57, 0, 0.3, 0.02])
+    cb = mpl.colorbar.ColorbarBase(cax, cmap=right_cmap, norm=right_norm, orientation="horizontal")
+    cb.set_label(right_str)
+    cb.set_ticks(right_ticks)
+    cb.set_ticklabels([str(t) for t in right_ticks])
+    cax.xaxis.set_minor_locator(mpl.ticker.NullLocator())
+    cax.set_frame_on(False)
+    axs[1].plot([], [], c="k", lw=2, label="S.d. events")
+    if alt_periods is not None:
+        axs[1].plot([], [], c="royalblue", lw=2, label="Alternative events")
+    # Place legend to the right of the colour bar.
+    axs[1].legend(loc="center left", bbox_to_anchor=(-0.5, -0.35), frameon=False)
+    if save_fig:
+        if path_str is None:
+            print("Please provide a name for the saved figure.")
+        else:
+            fig.savefig(f"{path_str}.pdf", bbox_inches='tight')
+    else:
+        plt.show(); 
+    return fig, axs
+
+
+def plot_generation_stack(
+    n: pypsa.Network,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    periods: pd.DataFrame,
+    freq: str = "1D",
+    new_index: pd.TimedeltaIndex = None,
+    ax=None,
+):
+    """Plot the generation stack with highlighted difficult periods.
+    
+    Parameters:
+    -----------
+    n: PyPSA network.
+    start: pd.Timestamp
+        Start date.
+    end: pd.Timestamp
+        End date.
+    periods: pd.DataFrame
+        System-defining events.
+    freq: str
+        Resampling frequency.
+    new_index: pd.TimedeltaIndex
+        New index for the data.
+    ax: matplotlib.axes
+        Axes
+    """
+    if ax is None:
+        fig = plt.figure(figsize=(8, 5))
+        ax = fig.add_subplot()
+    # Gather generation, storage, and load data.
+    # NB: Transmission cancels out on the European level.
+    p_gen = n.generators_t.p.groupby(n.generators.carrier, axis=1).sum() / 1e3
+    p_store = n.stores_t.p.groupby(n.stores.carrier, axis=1).sum() / 1e3
+    p_storage = n.storage_units_t.p.groupby(n.storage_units.carrier, axis=1).sum() / 1e3
+    p = pd.concat([p_gen, p_store, p_storage], axis=1)
+    p = p.resample(freq).mean()
+    # Ensure we have no leap days.
+    p = p[~((p.index.month == 2) & (p.index.day == 29))]
+    p_neg = p.clip(upper=0)
+    p = p.clip(lower=0)
+    loads = n.loads_t.p_set.sum(axis=1).resample(freq).mean() / 1e3
+    # Ensure we have no leap days.
+    loads = loads[~((loads.index.month == 2) & (loads.index.day == 29))]
+    # Ensure load shedding has a colour.
+    n.carriers.color["load-shedding"] = "#000000"
+    colors = [n.carriers.color[carrier] for carrier in p.columns]
+    if new_index is not None:
+        # Reindex the dates, as the years are wrong.
+        p.index = new_index
+        p_neg.index = new_index
+        loads.index = new_index
+    # If we specified a start and end date, only plot that period.
+    p_slice = p.loc[start:end]
+    p_neg_slice = p_neg.loc[start:end]
+    loads = loads[start:end]
+    # Plot the generation stack.
+    ax.stackplot(p_slice.index, p_slice.transpose(), colors=colors, labels=p.columns)
+    ax.stackplot(p_neg_slice.index, p_neg_slice.transpose(), colors=colors)
+    # Plot the SDEs.
+    # First the ones we have identified.
+    ymin, ymax = ax.get_ylim()
+    for _, row in periods.iterrows():
+        if (
+            row["start"].tz_localize(None) > start
+            and row["end"].tz_localize(None) < end
+        ):
+            period_start = pd.Timestamp(row["start"].date())
+            period_end = pd.Timestamp(row["end"].date())
+            ax.fill_between(
+                pd.DatetimeIndex(pd.date_range(period_start, period_end, freq="D")),
+                ymin,
+                ymax,
+                color="grey",
+                alpha=0.3,
+                label="Filtered period",
+            )
+    # Load.
+    ax.plot(loads, ls="dashed", color="red", label="load", linewidth=0.5)
+    ax.set_xlim(start, end)
+    if ax is None:
+        ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.set_ylabel("GW")
+    plt.tight_layout()
+
+
 def plot_optimal_costs(
     opt_networks: dict,
     techs: list = ["variable", "H2", "battery", "transmission-ac", "transmission-dc", "onwind", "offwind", "solar"],
@@ -438,6 +846,21 @@ def plot_optimal_costs(
     storage_units: bool = False,
     save_fig: bool = False,
 ):
+    """Plot the optimal costs for the different years.
+
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary of PyPSA networks.
+    techs: list
+        List of technologies.
+    pretty_names: dict
+        Pretty names for the technologies.
+    storage_units: bool
+        If True, use storage units instead of stores.
+    save_fig: bool
+        If True, save the figure.
+    """
     opt_objs, _ = optimal_costs(opt_networks,techs,pretty_names,storage_units)
     n_cs = list(opt_networks.values())[0].carriers.color
     cs = ["#c0c0c0", n_cs["H2"], n_cs["battery"], "#70af1d", "#92d123",  n_cs["onwind"], n_cs["offwind-ac"], n_cs["solar"]]
@@ -465,308 +888,6 @@ def plot_optimal_costs(
     else:
         plt.show()
 
-# Plot a segmented horizontal line (using LineCollection) where each segment is coloured according to total_costs[y]
-def plot_segmented_line(ax, x, y, c, cmap, norm, **kwargs):
-    segments = np.array([x[:-1], y[:-1], x[1:], y[1:]]).T.reshape(-1, 2, 2)
-    # Log norm
-    lc = mpl.collections.LineCollection(segments, cmap=cmap, norm=norm, **kwargs)
-    lc.set_array(c)
-    ax.add_collection(lc)
-    return lc
-
-def plot_duals(
-        periods: pd.DataFrame, 
-        years: list, 
-        left_vals: dict, 
-        right_vals: dict, 
-        left_norm,
-        right_norm, 
-        left_cmap: str = "Blues",
-        right_cmap: str = "Oranges",
-        left_str: str = "Fuel cell costs",
-        right_str: str = "Electricity costs",
-        left_ticks: list = [1, 10, 100],
-        right_ticks: list = [1, 10, 100, 1000, 10000],
-        left_scaling: float = 1e-6,
-        right_scaling: float = 1e-6,
-        save_fig: bool = False,
-        path_str: str = None,
-        alt_periods: Optional[pd.DataFrame] = None,
-    ):
-    fig, axs = plt.subplots(1, 2, figsize=(18 * cm, 18 * cm))
-
-    dates = mdates.date2num(pd.date_range("2014-10-01", "2015-03-31", freq="D").to_pydatetime())
-
-    for ax, year_selection in zip(axs, [years[:(len(years)//2)], years[(len(years)//2):]]):
-
-        for y in year_selection:
-            # Resample to daily resolution.
-            C = left_vals[y].resample("D").mean()
-            # Drop leap days from C
-            C = C.loc[(C.index.month != 2) | (C.index.day != 29)]
-            # Select only the period from October to March inclusive.
-            C = C.loc[(C.index.month >= 10) | (C.index.month <= 3)]
-            plot_segmented_line(
-                ax, dates, [y - 0.25] * len(C), C * left_scaling, left_cmap, left_norm, lw=4
-            )
-
-            # Resample to daily resolution.
-            alt_C = right_vals[y].resample("D").mean()
-            # Drop leap days from C
-            alt_C = alt_C.loc[(alt_C.index.month != 2) | (alt_C.index.day != 29)]
-            # Select only the period from October to March inclusive.
-            alt_C = alt_C.loc[(alt_C.index.month >= 10) | (alt_C.index.month <= 3)]
-            plot_segmented_line(
-                ax, dates, [y + 0.25] * len(alt_C), alt_C * right_scaling, right_cmap, right_norm, lw=4
-            )
-        
-
-
-        # Draw a horizontal line indicating the duration of each period for the corresponding year, from "start" to "end" date.
-        for i in periods.index:
-            y = get_net_year(periods.loc[i, "start"])
-            # Transpose period start and end to the 2014-2015 winter, then convert using mdates.date2num.
-            start = periods.loc[i, "start"]
-            start = mdates.date2num(
-                dt.datetime(2014 + (start.year - y), start.month, start.day)
-            )
-            end = periods.loc[i, "end"]
-            end = mdates.date2num(dt.datetime(2014 + (end.year - y), end.month, end.day))
-            ax.plot([start, end], [y - 0.12, y - 0.12], c="k", lw=3)
-        
-        # Do the same for the alternative periods
-        if alt_periods is not None:
-            for i in alt_periods.index:
-                y = get_net_year(alt_periods.loc[i, "start"])
-                # Transpose period start and end to the 2014-2015 winter, then convert using mdates.date2num.
-                start = alt_periods.loc[i, "start"]
-                start = mdates.date2num(
-                    dt.datetime(2014 + (start.year - y), start.month, start.day)
-                )
-                end = alt_periods.loc[i, "end"]
-                end = mdates.date2num(dt.datetime(2014 + (end.year - y), end.month, end.day))
-                ax.plot([start, end], [y + 0.12, y + 0.12], c="royalblue", lw=3)
-
-        ax.set_xlim(dates[0], dates[-1])
-        ax.set_ylim(year_selection[0] - 0.5, year_selection[-1] + 0.5)
-
-        # Vertically flip y-axis
-        ax.invert_yaxis()
-
-        # Display all years as ticks.
-        ax.set_yticks(year_selection)
-
-        # Format each y tick as 2019/20 instead of 2019 (for example)
-        ax.set_yticklabels([f"{str(y)[2:]}/{str(y + 1)[2:]}" for y in year_selection])
-
-        # Format x ticks as month names.
-        ax.xaxis.set_major_locator(mdates.MonthLocator())
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
-
-        # Remove tick marks
-        ax.tick_params(axis="y", which="both", length=0)
-
-        # Turn off axis frame
-        ax.set_frame_on(False)
-
-    # Add a colorbar.
-    cax = fig.add_axes([0.15, 0, 0.3, 0.02])
-    cb = mpl.colorbar.ColorbarBase(cax, cmap=left_cmap, norm=left_norm, orientation="horizontal")
-    cb.set_label(left_str)
-    cb.set_ticks(left_ticks)
-    cb.set_ticklabels([str(t) for t in left_ticks])
-    cax.xaxis.set_minor_locator(mpl.ticker.NullLocator())
-    cax.set_frame_on(False)
-
-    # Add a colorbar.
-    cax = fig.add_axes([0.57, 0, 0.3, 0.02])
-    cb = mpl.colorbar.ColorbarBase(cax, cmap=right_cmap, norm=right_norm, orientation="horizontal")
-    cb.set_label(right_str)
-    cb.set_ticks(right_ticks)
-    cb.set_ticklabels([str(t) for t in right_ticks])
-    cax.xaxis.set_minor_locator(mpl.ticker.NullLocator())
-    cax.set_frame_on(False)
-
-
-    axs[1].plot([], [], c="k", lw=2, label="S.d. events")
-    if alt_periods is not None:
-        axs[1].plot([], [], c="royalblue", lw=2, label="Alternative events")
-
-    # Place legend to the right of the colour bar.
-    axs[1].legend(loc="center left", bbox_to_anchor=(-0.5, -0.35), frameon=False)
-
-    if save_fig:
-        if path_str is None:
-            print("Please provide a name for the saved figure.")
-        else:
-            fig.savefig(f"{path_str}.pdf", bbox_inches='tight')
-    else:
-        plt.show(); 
-    return fig, axs
-
-def plot_scatter(ax, x_data, y_data, x_label, y_label, title):
-    ax.scatter(x_data, y_data, s=1)
-    ax.set_xlabel(x_label, fontsize=10)
-    ax.set_ylabel(y_label, fontsize=10)
-    ax.set_title(title, fontsize=12)
-    corr = x_data.corr(y_data)
-    ax.annotate(f"Corr: {corr:.2f}", xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', fontsize=10)
-
-def plot_generation_stack(
-    n: pypsa.Network,
-    start: pd.Timestamp,
-    end: pd.Timestamp,
-    difficult_periods: pd.DataFrame,
-    freq: str = "1D",
-    new_index: pd.TimedeltaIndex = None,
-    ax=None,
-):
-    """Plot the generation stack with highlighted difficult periods."""
-    if ax is None:
-        fig = plt.figure(figsize=(8, 5))
-        ax = fig.add_subplot()
-
-    # Gather generation, storage, and load data.
-    # NB: Transmission cancels out on the European level.
-    p_gen = n.generators_t.p.groupby(n.generators.carrier, axis=1).sum() / 1e3
-    p_store = n.stores_t.p.groupby(n.stores.carrier, axis=1).sum() / 1e3
-    p_storage = n.storage_units_t.p.groupby(n.storage_units.carrier, axis=1).sum() / 1e3
-
-    p = pd.concat([p_gen, p_store, p_storage], axis=1)
-    p = p.resample(freq).mean()
-    # Ensure we have no leap days.
-    p = p[~((p.index.month == 2) & (p.index.day == 29))]
-    p_neg = p.clip(upper=0)
-    p = p.clip(lower=0)
-
-    loads = n.loads_t.p_set.sum(axis=1).resample(freq).mean() / 1e3
-    # Ensure we have no leap days.
-    loads = loads[~((loads.index.month == 2) & (loads.index.day == 29))]
-
-    # Ensure load shedding has a colour.
-    n.carriers.color["load-shedding"] = "#000000"
-    colors = [n.carriers.color[carrier] for carrier in p.columns]
-
-    if new_index is not None:
-        # Reindex the dates, as the years are wrong.
-        p.index = new_index
-        p_neg.index = new_index
-        loads.index = new_index
-
-    # If we specified a start and end date, only plot that period.
-    p_slice = p.loc[start:end]
-    p_neg_slice = p_neg.loc[start:end]
-    loads = loads[start:end]
-
-    # Plot the generation stack.
-    ax.stackplot(p_slice.index, p_slice.transpose(), colors=colors, labels=p.columns)
-    ax.stackplot(p_neg_slice.index, p_neg_slice.transpose(), colors=colors)
-
-    # Plot the difficult periods.
-    # First the ones we have identified.
-    ymin, ymax = ax.get_ylim()
-    for _, row in difficult_periods.iterrows():
-        if (
-            row["start"].tz_localize(None) > start
-            and row["end"].tz_localize(None) < end
-        ):
-            period_start = pd.Timestamp(row["start"].date())
-            period_end = pd.Timestamp(row["end"].date())
-            ax.fill_between(
-                pd.DatetimeIndex(pd.date_range(period_start, period_end, freq="D")),
-                ymin,
-                ymax,
-                color="grey",
-                alpha=0.3,
-                label="Filtered period",
-            )
-    # Load.
-    ax.plot(loads, ls="dashed", color="red", label="load", linewidth=0.5)
-    ax.set_xlim(start, end)
-
-    if ax is None:
-        ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
-    ax.set_ylabel("GW")
-    plt.tight_layout()
-
-
-def plot_cluster_anomalies(
-    flex_anomaly: pd.DataFrame,
-    system_anomaly: pd.DataFrame,
-    periods: pd.DataFrame,
-    cluster_nr: int,
-    clustered_vals: pd.DataFrame,
-    tech: list = ["biomass", "nuclear", "H2 fuel cell", "battery discharger", "PHS", "hydro"],
-    tech_colours: list = ["#baa741", "#ff8c00", "#c251ae", "#ace37f", "#51dbcc", "#298c81"],
-    plot_all_system: bool = True,
-    resampled: str = "1D",
-    save_fig: bool = False,
-    path_str: str = None,
-    cluster_names: list = None,
-):
-    for cluster in range(cluster_nr):
-        nb_plots = len(clustered_vals.loc[clustered_vals["cluster"] == cluster])
-        nb_rows = nb_plots // 4 if nb_plots % 4 == 0 else nb_plots // 4 + 1
-
-        fig, axs = plt.subplots(nb_rows, 4, figsize = (30 * cm, nb_rows * 7 * cm), sharey=True, gridspec_kw={'hspace': 0.6})
-        if len(cluster_names) == cluster_nr:
-            fig.suptitle(f"Cluster {cluster}: {cluster_names[cluster]}", fontsize=16)
-        else:
-            fig.suptitle(f"Cluster {cluster}", fontsize=16)
-
-        for i, event_nr in enumerate(clustered_vals[clustered_vals["cluster"] == cluster].index):
-            ax = axs.flatten()[i]
-            start = periods.loc[event_nr, "start"]
-            end = periods.loc[event_nr, "end"]
-
-            # Plot stack plot of flexibility.
-            p = flex_anomaly.loc[start:end, tech].astype(float).resample(resampled).mean() / 1e3 # in GW
-            p_neg = p.clip(upper=0)
-            p_pos = p.clip(lower=0)
-
-            ax.stackplot(p_pos.index, p_pos.T, colors=tech_colours, labels=p_pos.columns)
-            ax.stackplot(p_neg.index, p_neg.T, colors=tech_colours)
-
-            # Plot net load anomaly.
-            net_load = system_anomaly.loc[start:end, "Net load anomaly"].resample(resampled).mean() / 1e3
-            ax.plot(net_load.index, net_load, color="black", lw=1, ls="--", label="Net load anomaly")
-            if plot_all_system:
-                load = system_anomaly.loc[start:end, "Load anomaly"].resample(resampled).mean() / 1e3
-                wind = system_anomaly.loc[start:end, "Wind anomaly"].resample(resampled).mean() / 1e3
-                solar = system_anomaly.loc[start:end, "Solar anomaly"].resample(resampled).mean() / 1e3
-                ax.plot(load.index, load, color="red", lw=1, ls=":", label="Load anomaly")
-                ax.plot(wind.index, wind, color="blue", lw=1, ls=":", label="Wind anomaly")
-                ax.plot(solar.index, solar, color="grey", lw=1, ls=":", label="Solar anomaly")
-            
-            ax.set_title(f"Event {event_nr}")
-            ax.set_ylabel("Flexibility/Anomaly [GW]")
-            ax.set_xlabel(f"{start.date()} - {end.date()}", fontsize=8)
-
-            # Set x-ticks to only show day and month
-            ax.xaxis.set_major_locator(mdates.DayLocator())
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
-            # Change font size of x tick labels.
-            ax.tick_params(axis="x", labelsize=8, rotation=90)
-        
-        # Add legend to the last row between the 2nd and 3rd plot.
-        labels, handles = ax.get_legend_handles_labels()
-        axs.flatten()[-3].legend(
-            labels, handles, loc="center", bbox_to_anchor=(1, -0.6), frameon=False, ncols=4
-        )
-
-        # Hide empty plots.
-        for ax in axs.flatten()[nb_plots:]:
-            ax.axis("off")
-
-        if save_fig:
-            if str is None:
-                print("Please specify a path to save the figure.")
-            else:
-                plt.savefig(f"{path_str}_cluster_{cluster}.pdf", bbox_inches='tight')
-        else:
-            plt.show();
-
-
 def plot_period_anomalies(
     flex_anomaly: pd.DataFrame,
     system_anomaly: pd.DataFrame,
@@ -778,24 +899,42 @@ def plot_period_anomalies(
     save_fig: bool = False,
     path_str: str = None,
 ):
+    """Plot the flexibility and system anomalies for the different periods.
+
+    Parameters:
+    -----------
+    flex_anomaly: pd.DataFrame
+        Flexibility anomalies per technology.
+    system_anomaly: pd.DataFrame
+        System anomalies (net load, load, wind, solar).
+    periods: pd.DataFrame
+        System-defining events.
+    tech: list
+        List of technologies.
+    tech_colours: list
+        List of colours for the technologies.
+    plot_all_system: bool
+        If True, plot all system anomalies. Otherwise only net load.
+    resampled: str
+        Resampling frequency.
+    save_fig: bool
+        If True, save the figure.
+    path_str: str
+        Path to save the figure.
+    """
     nb_plots = len(periods)
     nb_rows = nb_plots // 4 if nb_plots % 4 == 0 else nb_plots // 4 + 1
-
     fig, axs = plt.subplots(nb_rows, 4, figsize = (30 * cm, nb_rows * 7 * cm), sharey=True, gridspec_kw={'hspace': 0.6})
-
     for i, row in periods.iterrows():
         ax = axs.flatten()[i]
         start = row["start"]
         end = row["end"]
-
         # Plot stack plot of flexibility.
         p = flex_anomaly.loc[start:end, tech].astype(float).resample(resampled).mean() / 1e3 # in GW
         p_neg = p.clip(upper=0)
         p_pos = p.clip(lower=0)
-
         ax.stackplot(p_pos.index, p_pos.T, colors=tech_colours, labels=p_pos.columns)
         ax.stackplot(p_neg.index, p_neg.T, colors=tech_colours)
-
         # Plot net load anomaly.
         net_load = system_anomaly.loc[start:end, "Net load anomaly"].resample(resampled).mean() / 1e3
         ax.plot(net_load.index, net_load, color="black", lw=1, ls="--", label="Net load anomaly")
@@ -806,49 +945,51 @@ def plot_period_anomalies(
             ax.plot(load.index, load, color="red", lw=1, ls=":", label="Load anomaly")
             ax.plot(wind.index, wind, color="blue", lw=1, ls=":", label="Wind anomaly")
             ax.plot(solar.index, solar, color="grey", lw=1, ls=":", label="Solar anomaly")
-        
         ax.set_title(f"Event {i}")
         ax.set_ylabel("Flexibility/Anomaly [GW]")
         ax.set_xlabel(f"{start.date()} - {end.date()}", fontsize=8)
-
         # Set x-ticks to only show day and month
         ax.xaxis.set_major_locator(mdates.DayLocator())
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
         # Change font size of x tick labels.
-        ax.tick_params(axis="x", labelsize=8, rotation=90)
-    
+        ax.tick_params(axis="x", labelsize=8, rotation=90)    
     # Add legend to the last row between the 2nd and 3rd plot.
     labels, handles = ax.get_legend_handles_labels()
     axs.flatten()[-3].legend(
         labels, handles, loc="center", bbox_to_anchor=(1, -0.6), frameon=False, ncols=4
     )
-
     # Hide empty plots.
     for ax in axs.flatten()[nb_plots:]:
         ax.axis("off")
-
     if save_fig:
-        if str is None:
+        if path_str is None:
             print("Please specify a path to save the figure.")
         else:
             plt.savefig(f"{path_str}.pdf", bbox_inches='tight')
     else:
-        plt.show();
+        plt.show()
 
+def plot_scatter(ax, x_data, y_data, x_label, y_label, title):
+    """Plot a scatter plot with correlation coefficient annotated.
+    """
+    ax.scatter(x_data, y_data, s=1)
+    ax.set_xlabel(x_label, fontsize=10)
+    ax.set_ylabel(y_label, fontsize=10)
+    ax.set_title(title, fontsize=12)
+    corr = x_data.corr(y_data)
+    ax.annotate(f"Corr: {corr:.2f}", xy=(0.95, 0.95), xycoords='axes fraction', ha='right', va='top', fontsize=10)
 
-colours = {
-    "DC":  "#8a1caf",
-    "AC": "#70af1d",
-    "biomass": "#baa741",
-    "nuclear": "#ff8c00",
-    "ror": "#3dbfb0",
-    "fuel_cells": "#c251ae",
-    "battery": "#ace37f",
-    "phs": "#51dbcc",
-    "hydro": "#298c81",
-}
+def plot_segmented_line(ax, x, y, c, cmap, norm, **kwargs):
+    """Plot a segmented horizontal line (using LineCollection) where each segment is coloured according to total_costs[y]
+    """
+    segments = np.array([x[:-1], y[:-1], x[1:], y[1:]]).T.reshape(-1, 2, 2)
+    # Log norm
+    lc = mpl.collections.LineCollection(segments, cmap=cmap, norm=norm, **kwargs)
+    lc.set_array(c)
+    ax.add_collection(lc)
+    return lc
 
-
+#### CURRENTLY NOT IN USE:
 def plot_flex_events(
     periods: pd.DataFrame,
     all_flex: pd.DataFrame,
@@ -861,6 +1002,31 @@ def plot_flex_events(
     save_fig: bool = False,
     path_str: str = None,
 ):
+    """Plot flexibility usage of different technologies around the system-defining events.
+
+    Parameters:
+    -----------
+    periods: pd.DataFrame
+        DataFrame containing the start and end dates of the events.
+    all_flex: pd.DataFrame
+        DataFrame containing the flexibility usage of different technologies.
+    avg_flex: pd.DataFrame
+        DataFrame containing the average flexibility usage of different technologies.
+    rolling: int
+        Rolling window for the flexibility usage.
+    mark_sde: bool
+        Whether to mark the system-defining events.
+    window_length: pd.Timedelta
+        Length of the window around the events.
+    tech: list
+        List of technologies to plot.
+    title: str
+        Title of the plot.
+    save_fig: bool
+        Whether to save the figure.
+    path_str: str
+        Path to save the figure in.
+    """
     colours = {
     "DC":  "#8a1caf",
     "AC": "#70af1d",
@@ -878,11 +1044,9 @@ def plot_flex_events(
     fig.suptitle(title, fontsize=12)
     # No vertical space between title and the rest of the plot.
     fig.subplots_adjust(top=0.95)
-
     for i, row in periods.iterrows():
         window_start = row["start"] - window_length
         window_end = row["end"] + window_length
-
         ax = axs.flatten()[i]
         ax.plot(
             all_flex.loc[window_start:window_end, tech].rolling(rolling).mean().index,
@@ -890,7 +1054,6 @@ def plot_flex_events(
             color = [colours[t] for t in tech] if len(tech) > 1 else colours[tech[0]],
             lw=0.5,
         )
-
         # Translated 2014-2015 from avg_flex to correct year.
         shifted_avg_flex = avg_flex.copy()
         year = get_net_year(row["start"])
@@ -898,8 +1061,6 @@ def plot_flex_events(
         if pd.Timestamp(f"{year + 1}-01-01").is_leap_year:
             new_index = new_index.drop(pd.date_range(f"{year + 1}-02-29", f"{year + 1}-02-29 23:00:00", freq="h"))
         shifted_avg_flex.index = new_index
-
-
         ax.plot(
             shifted_avg_flex.loc[window_start:window_end, tech].rolling(rolling).mean().index,
             shifted_avg_flex.loc[window_start:window_end, tech].rolling(rolling).mean(),
@@ -915,19 +1076,14 @@ def plot_flex_events(
                 color="gray",
                 alpha=0.2,
             )
-
         ax.set_title(f"Event {i}")
         #ax.set_ylim(0, 1)
-        ax.set_xlim(window_start, window_end)
-        
+        ax.set_xlim(window_start, window_end)     
         # Only mark beginning of months in x-tickmarkers.
         ax.xaxis.set_major_locator(mdates.MonthLocator())
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%Y"))
-
-
         #ax.set_xlabel("Time")
         ax.set_ylabel("Flexibility usage")
-    
     if save_fig:
         if path_str is None:
             print("Please specify a path to save the figure.")

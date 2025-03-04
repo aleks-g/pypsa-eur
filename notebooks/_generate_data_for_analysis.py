@@ -1,15 +1,21 @@
-'''
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""
 Generate data for the notebooks in which we analyse and plot the data.
+"""
 
-
-'''
-
-import pandas as pd
-import numpy as np
-import pypsa
+import datetime as dt
 import os
-import yaml
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import pandas as pd
+import pypsa
 import xarray as xr
+import yaml
 
 from _notebook_utilities import *
 
@@ -21,13 +27,18 @@ def average_across_years(df, years):
     and returns a DataFrame with the average values for each hour across the specified years.
 
     Parameters:
-    df (pd.DataFrame): The input DataFrame containing time series data.
-    years (list of int): A list of years to be considered for averaging.
+    -----------
+    df: pd.DataFrame
+        The input DataFrame containing time series data.
+    years: List[int]
+        A list of years to be considered for averaging.
 
     Returns:
-    pd.DataFrame: A DataFrame with the average values for each hour across the specified years.
-    The index of the returned DataFrame is a date range from July 1st of the first year
-    to June 30th of the following year, with hourly frequency.
+    --------
+    pd.DataFrame
+        A DataFrame with the average values for each hour across the specified years.
+        The index of the returned DataFrame is a date range from July 1st of the first year
+        to June 30th of the following year, with hourly frequency.
     """
     df_help = df.copy()
     df_help.index = range(len(df_help))
@@ -38,20 +49,24 @@ def average_across_years(df, years):
     avg_df.index = pd.date_range(f"{years[0]}-07-01", f"{years[0]+1}-06-30 23:00", freq="h")
     return avg_df
 
-def compute_hydro_phs_costs(opt_networks):
+def compute_hydro_phs_costs(opt_networks: Dict[int, pypsa.Network]) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Compute the costs associated with hydro and pumped hydro storage (PHS) units 
     from a given set of optimized networks.
 
     Parameters:
-    opt_networks (dict): A dictionary of optimized network objects. Each network 
-                         object should have storage units with associated time 
-                         series data for power output and energy balance multipliers.
+    -----------
+    opt_networks: Dict[int, pypsa.Network]
+        A dictionary of optimized network objects. Each network 
+        object should have storage units with associated time 
+        series data for power output and energy balance multipliers.
 
     Returns:
-    tuple: A tuple containing two pandas DataFrames:
-           - hydro_costs: Costs associated with hydro storage units.
-           - phs_costs: Costs associated with pumped hydro storage (PHS) units.
+    --------
+    Tuple[pd.DataFrame, pd.DataFrame]
+        A tuple containing two pandas DataFrames:
+        - hydro_costs: Costs associated with hydro storage units.
+        - phs_costs: Costs associated with pumped hydro storage (PHS) units.
     """
     hydro_costs = []
     phs_costs = []
@@ -64,14 +79,21 @@ def compute_hydro_phs_costs(opt_networks):
     phs_costs = pd.concat(phs_costs, axis=0)
     return hydro_costs, phs_costs
 
-def compute_longest_deficit(years, net_load):
+def compute_longest_deficit(years: List[int], net_load: pd.Series) -> pd.DataFrame:
     """
     Computes the longest deficit period for each year in the given range.
+    
     Parameters:
-    years (list of int): List of years to analyze.
-    net_load (pd.DataFrame): DataFrame containing net load data with a datetime index.
+    -----------
+    years: List[int]
+        List of years to analyze.
+    net_load: pd.Series
+        Series containing net load data with a datetime index.
+        
     Returns:
-    pd.DataFrame: DataFrame with columns ["start", "end", "hours", "mean", "total"] for each year.
+    --------
+    pd.DataFrame
+        DataFrame with columns ["start", "end", "hours", "mean", "total"] for each year.
         - "start": The start time of the longest deficit period.
         - "end": The end time of the longest deficit period.
         - "hours": The duration of the longest deficit period in hours.
@@ -246,10 +268,28 @@ def compute_flex_periods_anomalies(
     peak_anomaly_flex = anomaly_index_shift(peak_flex, avg_flex, years)  
     return avg_flex, periods_flex, periods_anomaly_flex, peak_flex, peak_anomaly_flex
 
-def characteristics_sdes(opt_networks, periods, all_prices):
-    '''
+def characteristics_sdes(
+    opt_networks: Dict[int, pypsa.Network],
+    periods: pd.DataFrame, 
+    all_prices: pd.DataFrame
+) -> pd.DataFrame:
+    """
     Compute the characteristics of the system-defining events.
-    '''
+    
+    Parameters:
+    -----------
+    opt_networks: Dict[int, pypsa.Network]
+        Dictionary of optimized PyPSA networks
+    periods: pd.DataFrame
+        DataFrame with start and end times of system-defining events
+    all_prices: pd.DataFrame
+        DataFrame with electricity prices
+        
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with characteristics of system-defining events
+    """
     stores_periods = periods.copy()
 
     # Discharge behaviour in periods.
@@ -349,7 +389,20 @@ def anomaly_index_shift(df_origin, avg_df, years):
     return df_end
 
 
-def gather_cfs(opt_networks):
+def gather_cfs(opt_networks: Dict[int, pypsa.Network]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Gather capacity factors for wind and solar generators from optimized networks.
+    
+    Parameters:
+    -----------
+    opt_networks: Dict[int, pypsa.Network]
+        Dictionary of optimized PyPSA networks
+        
+    Returns:
+    --------
+    Tuple[pd.DataFrame, pd.DataFrame]
+        Wind capacity factors and solar capacity factors
+    """
     ns_wind_cf = []
     ns_solar_cf = []
     for year, n in opt_networks.items():
@@ -365,10 +418,27 @@ def gather_cfs(opt_networks):
     return wind_cf, solar_cf
 
 def gen_stack_around_sde(
-    opt_networks,
-    periods,
-    window = pd.Timedelta("14D"),
-):
+    opt_networks: Dict[int, pypsa.Network],
+    periods: pd.DataFrame,
+    window: pd.Timedelta = pd.Timedelta("14D"),
+) -> pd.DataFrame:
+    """
+    Generate generation stacks for periods around system-defining events.
+    
+    Parameters:
+    -----------
+    opt_networks: Dict[int, pypsa.Network]
+        Dictionary of optimized PyPSA networks
+    periods: pd.DataFrame
+        DataFrame with start and end times of system-defining events
+    window: pd.Timedelta, default "14D"
+        Time window to consider before and after each event
+        
+    Returns:
+    --------
+    pd.DataFrame
+        Generation stacks for all technologies around system-defining events
+    """
     gen_stacks = []
     for i, period in periods.iterrows():
         gen_stack = pd.DataFrame(columns = ["biomass", "nuclear", "ror", "battery discharger", "hydro", "PHS", "H2 fuel cell", "solar", "offwind", "onwind"]).astype(float)
@@ -472,19 +542,51 @@ def solar_capacity_factors(opt_networks, years, winter = False):
        
 
 def stats_sde(
-        periods,
-        stores_periods,
-        net_load,
-        total_load,
-        avg_load,
-        avg_wind,
-        wind_cf,
-        wind_caps,
-        reindex_opt_objs,
-        total_costs,
-        all_prices):
-    '''
-    Compute the statistics for the system-defining events.'''
+    periods: pd.DataFrame,
+    stores_periods: pd.DataFrame,
+    net_load: pd.Series,
+    total_load: pd.Series,
+    avg_load: pd.DataFrame,
+    avg_wind: pd.DataFrame,
+    wind_cf: pd.DataFrame,
+    wind_caps: pd.DataFrame,
+    reindex_opt_objs: pd.Series,
+    total_costs: Dict[int, pd.DataFrame],
+    all_prices: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Compute statistical metrics for system-defining events.
+    
+    Parameters:
+    -----------
+    periods: pd.DataFrame
+        DataFrame with start and end times of system-defining events
+    stores_periods: pd.DataFrame
+        DataFrame with storage-related characteristics of SDEs
+    net_load: pd.Series
+        Time series of net load
+    total_load: pd.Series
+        Time series of total load
+    avg_load: pd.DataFrame
+        Average load per time period
+    avg_wind: pd.DataFrame
+        Average wind generation per time period
+    wind_cf: pd.DataFrame
+        Wind capacity factors
+    wind_caps: pd.DataFrame
+        Wind capacities
+    reindex_opt_objs: pd.Series
+        Reindexed objective function values
+    total_costs: Dict[int, pd.DataFrame]
+        Dictionary of total costs per year
+    all_prices: pd.DataFrame
+        DataFrame with electricity prices
+        
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with statistical metrics for system-defining events
+    """
     stats_periods = periods.copy()
     for i in stats_periods.index:
         stats_periods.loc[i, "net_load_peak_hour"] = net_load.loc[stats_periods.loc[i, "peak_hour"]]/ 1e3
