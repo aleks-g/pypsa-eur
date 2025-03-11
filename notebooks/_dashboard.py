@@ -122,51 +122,77 @@ def load_hull_data(
 
 
 def plot_dashboard(
-    config_name,
-    event_nr,
-    stats_periods,
-    annual_values,
-    kpis,
-    kpi_names,
-    hulls_coll,
-    hulls_markers_names,
-    fc_flex,
-    onshore_regions,
-    n,
-    projection,
-    categories,
-    cat_names,
-    label_names,
-    gen_stacks,
-    time_window,
-    total_load,
-    freq,
-    save = False,
-):
+    config_name: str,
+    event_nr: int,
+    stats_periods: pd.DataFrame,
+    annual_values: pd.DataFrame,
+    kpis: List[str],
+    kpi_names: List[str],
+    hulls_coll: Dict[str, List[ConvexHull]],
+    hulls_markers_names: List[str],
+    fc_flex: pd.DataFrame,
+    onshore_regions: gpd.GeoDataFrame,
+    n: pypsa.Network,
+    projection: ccrs.Projection,
+    categories: List[str],
+    cat_names: List[str],
+    label_names: Dict[str, List[str]],
+    gen_stacks: pd.DataFrame,
+    time_window: pd.Timedelta,
+    total_load: pd.DataFrame,
+    freq: str,
+    save: bool = False
+) -> plt.Figure:
     """
     Plot a dashboard with KPIs, map, annual stats, and generation stack plot.
 
     Parameters:
-    - config_name: str, name of the configuration.
-    - event_nr: int, event number.
-    - stats_periods: DataFrame, statistics of periods.
-    - annual_values: DataFrame, annual values.
-    - kpis: list, key performance indicators.
-    - kpi_names: list, names of the KPIs.
-    - hulls_coll: dict, hull data for different technologies.
-    - hulls_markers_names: list, names of the hull markers.
-    - fc_flex: DataFrame, fuel cell flexibility data.
-    - onshore_regions: GeoDataFrame, onshore regions data.
-    - n: Network, PyPSA network object.
-    - projection: cartopy.crs.Projection, map projection.
-    - categories: list, categories for the annual stats.
-    - cat_names: list, names of the categories.
-    - label_names: dict, label names for the categories.
-    - gen_stacks: DataFrame, generation stack data.
-    - time_window: Timedelta, time window for the generation stack plot.
-    - total_load: DataFrame, total load data.
-    - freq: str, frequency for resampling the data.
-    - save: bool, whether to save the plot.
+    -----------
+    config_name: str
+        Name of the configuration
+    event_nr: int
+        Event number to display
+    stats_periods: pd.DataFrame
+        Statistics of all periods
+    annual_values: pd.DataFrame
+        Annual values data
+    kpis: List[str]
+        Key performance indicators to display
+    kpi_names: List[str]
+        Names of the KPIs for display
+    hulls_coll: Dict[str, List[ConvexHull]]
+        Hull data for different technologies
+    hulls_markers_names: List[str]
+        Names of the hull markers
+    fc_flex: pd.DataFrame
+        Fuel cell flexibility data
+    onshore_regions: gpd.GeoDataFrame
+        Onshore regions data
+    n: pypsa.Network
+        PyPSA network object
+    projection: ccrs.Projection
+        Map projection
+    categories: List[str]
+        Categories for the annual stats
+    cat_names: List[str]
+        Names of the categories
+    label_names: Dict[str, List[str]]
+        Label names for the categories
+    gen_stacks: pd.DataFrame
+        Generation stack data
+    time_window: pd.Timedelta
+        Time window for the generation stack plot
+    total_load: pd.DataFrame
+        Total load data
+    freq: str
+        Frequency for resampling the data
+    save: bool, default False
+        Whether to save the plot
+        
+    Returns:
+    --------
+    plt.Figure
+        The dashboard figure
     """
     fig, axd = plt.subplot_mosaic(
     mosaic = [["kpi", "map", "stats"], ["gen", "gen", "gen"]],
