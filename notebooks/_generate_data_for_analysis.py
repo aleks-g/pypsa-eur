@@ -469,6 +469,7 @@ def gen_stack_around_sde(
     gen_stacks = pd.concat(gen_stacks)
     return gen_stacks
 
+
 def nodal_flex_periods_seasonality(
     nodal_flex_u_xr,
     nodes,
@@ -797,7 +798,9 @@ if __name__ == "__main__":
     annual_cfs = wind_capacity_factors(opt_networks, years, winter = False)
     winter_cfs = wind_capacity_factors(opt_networks, years, winter = True)
     annual_solar_cfs = solar_capacity_factors(opt_networks, years, winter = False)
+    winter_solar_cfs = solar_capacity_factors(opt_networks, years, winter = True)
     annual_cfs = pd.concat([annual_cfs, annual_solar_cfs], axis="columns")
+    winter_cfs = pd.concat([winter_cfs, winter_solar_cfs], axis="columns")
     annual_cfs.round(4).to_csv(f"{folder}/annual_cfs.csv")
     winter_cfs.round(4).to_csv(f"{folder}/winter_cfs.csv")
 
@@ -865,8 +868,8 @@ if __name__ == "__main__":
     nfp, nfu = nodal_flexibility(opt_networks, nodes)
     nodal_flex_p = pd.concat(nfp)
     nodal_flex_p.to_csv(f"{folder}/nodal_flex_p.csv")
-    for node in nodes:
-        nfu[node].to_csv(f"{folder}/nodal_flex_u/nodal_flex_u_{node}.csv")
+    # for node in nodes:
+    #     nfu[node].to_csv(f"{folder}/nodal_flex_u/nodal_flex_u_{node}.csv")
     nodal_flex_u = {node: nfu[node] for node in nodes}
     nodal_flex_u_xr = xr.concat([nodal_flex_u[node].to_xarray() for node in nodes], dim = pd.Index(nodes, name = "node"))
     nodal_flex_u_xr.to_netcdf(f"{folder}/nodal_flex_u.nc")
