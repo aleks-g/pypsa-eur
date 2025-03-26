@@ -52,6 +52,12 @@ if __name__ == "__main__":
         mean_shedding = (sum(ls_ts)/len(ls_ts))
         mean_system_shedding = mean_shedding.mean(axis="columns")
 
+        # Look at maximal average load shedding per node.
+        max_shedding = mean_shedding.max(axis="index")
+        # Look at expected nodal load shedding per year.
+        expected_shedding = mean_shedding.sum(axis="index")
+
+
         # Export to CSV
 
         # Make sure folders exist.
@@ -60,3 +66,5 @@ if __name__ == "__main__":
         system_shedding.to_csv(f"./load_shedding/{config_name}/design_years/{design_year}/system_shedding.csv")
         mean_shedding.to_csv(f"./load_shedding/{config_name}/design_years/{design_year}/mean_nodal_shedding.csv")
         mean_system_shedding.to_csv(f"./load_shedding/{config_name}/design_years/{design_year}/mean_system_shedding.csv")
+        max_shedding.to_csv(f"./load_shedding/{config_name}/design_years/{design_year}/max_shedding.csv")
+        expected_shedding.to_csv(f"./load_shedding/{config_name}/design_years/{design_year}/expected_shedding.csv")
