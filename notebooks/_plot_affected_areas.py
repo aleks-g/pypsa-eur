@@ -469,7 +469,7 @@ def plot_affected_areas(
     ax: plt.Axes = None,
     save: bool = False,
 ) -> list:
-"""Plot affected areas on a map based on pre-computed hulls.
+    '''Plot affected areas on a map based on pre-computed hulls.
     
     Parameters:
     -----------
@@ -510,7 +510,7 @@ def plot_affected_areas(
     --------
     list
         Legend elements for the plot
-    """
+    '''
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(10, 10), subplot_kw={"projection": projection})
     n.plot(ax=ax, bus_sizes=0, bus_colors="black", line_widths=0, link_widths=0, link_colors="black", line_colors="black",color_geomap=True)
@@ -623,7 +623,7 @@ def grid_maps(
     save: bool = False,
     cmap: str = "coolwarm",
 ) -> None:
-"""Create a grid of maps showing clustered data.
+    """Create a grid of maps showing clustered data.
     
     Parameters:
     -----------
@@ -709,7 +709,7 @@ def grid_affected_areas(
     projection: ccrs.Projection,
     save: bool = False,
 ) -> None:
-"""Create a grid of maps showing affected areas for multiple periods.
+    """Create a grid of maps showing affected areas for multiple periods.
     
     Parameters:
     -----------

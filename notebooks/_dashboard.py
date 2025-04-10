@@ -41,17 +41,18 @@ logging.getLogger("pypsa.io").setLevel(logging.ERROR)
 
 cm = 1 / 2.54  # centimeters in inches
 
+
 def collect_annual_values(
     ranked_years: pd.DataFrame,
     annual_cfs: pd.DataFrame,
     winter_load: pd.DataFrame,
     total_costs: Dict[int, pd.Series],
     flex_caps: pd.DataFrame,
-    years: List[int]
+    years: List[int],
 ) -> pd.DataFrame:
     """
     Collect annual values for dashboard display.
-    
+
     Parameters:
     -----------
     ranked_years: pd.DataFrame
@@ -66,13 +67,13 @@ def collect_annual_values(
         Capacity of battery dischargers and fuel cells
     years: List[int]
         Years to process
-        
+
     Returns:
     --------
     pd.DataFrame
         DataFrame containing collected annual values
     """
-    annual_values = pd.DataFrame(index = years).astype(float)
+    annual_values = pd.DataFrame(index=years).astype(float)
 
     annual_values["ranked_costs"] = ranked_years["System costs"]
     annual_values["design_year"] = ranked_years["Design year"]
@@ -80,7 +81,9 @@ def collect_annual_values(
 
     annual_values["solar_cf"] = annual_cfs["solar"].round(2)
     annual_values["wind_cf"] = annual_cfs["wind"].round(2)
-    annual_values["winter_load"] = (winter_load["load"]/winter_load["load"].max()).round(2)
+    annual_values["winter_load"] = (
+        winter_load["load"] / winter_load["load"].max()
+    ).round(2)
 
     annual_values["total_costs"] = [total_costs[y].sum() for y in years]
 
@@ -88,15 +91,13 @@ def collect_annual_values(
     annual_values["fuel_cells"] = flex_caps["H2 fuel cell"]
     return annual_values
 
+
 def load_hull_data(
-    config_name: str,
-    periods: pd.DataFrame,
-    techs: List[str],
-    thres: List[float]
+    config_name: str, periods: pd.DataFrame, techs: List[str], thres: List[float]
 ) -> Dict[str, List[ConvexHull]]:
     """
     Load hull data for different technologies and thresholds.
-    
+
     Parameters:
     -----------
     config_name: str
@@ -107,7 +108,7 @@ def load_hull_data(
         List of technologies to load hulls for
     thres: List[float]
         List of thresholds corresponding to each technology
-        
+
     Returns:
     --------
     Dict[str, List[ConvexHull]]
@@ -116,9 +117,18 @@ def load_hull_data(
     """Load the hull data for the different technologies and thresholds."""
     hulls = {tech: [] for tech in techs}
     for tech, t in zip(techs, thres):
-        hulls[tech].extend([ConvexHull(pd.read_csv(f"processing_data/{config_name}/maps/{tech}/hull_{t}_event{i}.csv", index_col=0)) for i in range(len(periods))])
+        hulls[tech].extend(
+            [
+                ConvexHull(
+                    pd.read_csv(
+                        f"processing_data/{config_name}/maps/{tech}/hull_{t}_event{i}.csv",
+                        index_col=0,
+                    )
+                )
+                for i in range(len(periods))
+            ]
+        )
     return hulls
-
 
 
 def plot_dashboard(
@@ -141,7 +151,7 @@ def plot_dashboard(
     time_window: pd.Timedelta,
     total_load: pd.DataFrame,
     freq: str,
-    save: bool = False
+    save: bool = False,
 ) -> plt.Figure:
     """
     Plot a dashboard with KPIs, map, annual stats, and generation stack plot.
@@ -188,26 +198,24 @@ def plot_dashboard(
         Frequency for resampling the data
     save: bool, default False
         Whether to save the plot
-        
+
     Returns:
     --------
     plt.Figure
         The dashboard figure
     """
     fig, axd = plt.subplot_mosaic(
-    mosaic = [["kpi", "map", "stats"], ["gen", "gen", "gen"]],
-    width_ratios=[1, 1, 1],
-    height_ratios=[3,1],
-    gridspec_kw={"hspace": 1},
-    per_subplot_kw={
-        "map": {"projection": projection},
-    },
-    figsize = (30 *cm, 12* cm)
+        mosaic=[["kpi", "map", "stats"], ["gen", "gen", "gen"]],
+        width_ratios=[1, 1, 1],
+        height_ratios=[3, 1],
+        gridspec_kw={"hspace": 1},
+        per_subplot_kw={
+            "map": {"projection": projection},
+        },
+        figsize=(30 * cm, 12 * cm),
     )
 
     period = stats_periods.loc[event_nr]
-    
-
 
     ### PLOT KPIs
     ax = axd["kpi"]
@@ -226,37 +234,53 @@ def plot_dashboard(
 
         # First make stripplot of all SDEs
         sns.stripplot(
-        data=stats_periods,  # Adjust duration as needed
-        x=kpi,
-        ax=sub_ax,
-        jitter=0.1,
-        alpha=0.2,
-        size=3,
-        color="grey",
-        legend=False
+            data=stats_periods,  # Adjust duration as needed
+            x=kpi,
+            ax=sub_ax,
+            jitter=0.1,
+            alpha=0.2,
+            size=3,
+            color="grey",
+            legend=False,
         )
 
         # Annotate the min and max value with their value
         minval, maxval = stats_periods[kpi].min(), stats_periods[kpi].max()
         for val, text in zip([minval, maxval], ["min", "max"]):
             if kpi in ["wind_anom", "avg_rel_load", "normed_price_std"]:
-                sub_ax.text(val, -0.15, f"{val:.2f}", ha="center", va="bottom", fontsize=7, color="grey")
+                sub_ax.text(
+                    val,
+                    -0.15,
+                    f"{val:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="grey",
+                )
             else:
-                sub_ax.text(val, -0.15, f"{val:.0f}", ha="center", va="bottom", fontsize=7, color="grey")
-        
+                sub_ax.text(
+                    val,
+                    -0.15,
+                    f"{val:.0f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="grey",
+                )
+
         # Plot all other values that are inside the cluster
         sns.stripplot(
-            data=stats_periods[stats_periods.cluster == period.cluster], 
+            data=stats_periods[stats_periods.cluster == period.cluster],
             x=kpi,
             ax=sub_ax,
             jitter=0.1,
             alpha=0.4,
             size=3,
-            marker = "D",
+            marker="D",
             color="blue",
-            legend=False
-            )
-        
+            legend=False,
+        )
+
         # Plot the actual value
         sns.stripplot(
             data=stats_periods[stats_periods.index == period.name],
@@ -265,19 +289,42 @@ def plot_dashboard(
             jitter=0,
             alpha=0.8,
             size=3,
-            marker = "D",
+            marker="D",
             color="red",
-            legend=False
+            legend=False,
         )
-            # Annotate value of selected period.
+        # Annotate value of selected period.
         if kpi in ["wind_anom", "avg_rel_load", "normed_price_std"]:
-            sub_ax.text(period[kpi], 0.5, f"{period[kpi]:.2f}", ha="center", va="bottom", fontsize=7, color="red")
+            sub_ax.text(
+                period[kpi],
+                0.5,
+                f"{period[kpi]:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                color="red",
+            )
         else:
-            sub_ax.text(period[kpi], 0.5, f"{period[kpi]:.0f}", ha="center", va="bottom", fontsize=7, color="red")
+            sub_ax.text(
+                period[kpi],
+                0.5,
+                f"{period[kpi]:.0f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                color="red",
+            )
 
         # Add the kpi as yticklabel and no x and y labels.
         sub_ax.text(
-            0.5, sub_ax_height + 0.6, name, ha="center", va="bottom", fontsize=8, color="black", transform=sub_ax.transAxes
+            0.5,
+            sub_ax_height + 0.6,
+            name,
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="black",
+            transform=sub_ax.transAxes,
         )
         sub_ax.set_xticklabels([])
         sub_ax.set_ylabel("")
@@ -286,9 +333,14 @@ def plot_dashboard(
 
         # Remove border around axes.
         sub_ax.axis("off")
-    sub_axes[0].legend(["All SDEs", "Same cluster", "SDE"], loc="upper left", bbox_to_anchor=(0, 0), fontsize=7, ncols=3)
+    sub_axes[0].legend(
+        ["All SDEs", "Same cluster", "SDE"],
+        loc="upper left",
+        bbox_to_anchor=(0, 0),
+        fontsize=7,
+        ncols=3,
+    )
     axd["kpi"].set_visible(False)
-
 
     ### MAP
     ax = axd["map"]
@@ -299,7 +351,7 @@ def plot_dashboard(
         [hulls_coll[tech][event_nr] for tech in hulls_coll.keys()],
         list(hulls_coll.keys()),
         hulls_markers_names,
-        ["#235ebc", "#dd2e23", "green", '#c251ae'],
+        ["#235ebc", "#dd2e23", "green", "#c251ae"],
         fc_flex,
         "fuel_cells",
         mpl.colors.Normalize(vmin=0, vmax=1),
@@ -307,29 +359,61 @@ def plot_dashboard(
         onshore_regions,
         n,
         projection,
-        ax=ax
+        ax=ax,
     )
-    ax.legend(handles = legend_elements, bbox_to_anchor=(0.5,0), loc="upper center", fontsize=7)
+    ax.legend(
+        handles=legend_elements, bbox_to_anchor=(0.5, 0), loc="upper center", fontsize=7
+    )
 
     ## ANNUAL STATS
     ax = axd["stats"]
 
     # Get annual values.
     net_year = get_net_year(pd.Timestamp(period.start))
-    difficulty_ranks = [annual_values.loc[net_year, c] for c in ["ranked_costs", "design_year", "op_year"]]
-    weather_vals = [annual_values.loc[net_year, c] for c in ["solar_cf", "wind_cf", "winter_load"]]
-    min_weather_vals = [annual_values[c].min() for c in ["solar_cf", "wind_cf", "winter_load"]]
-    max_weather_vals = [annual_values[c].max() for c in ["solar_cf", "wind_cf", "winter_load"]]
+    difficulty_ranks = [
+        annual_values.loc[net_year, c]
+        for c in ["ranked_costs", "design_year", "op_year"]
+    ]
+    weather_vals = [
+        annual_values.loc[net_year, c] for c in ["solar_cf", "wind_cf", "winter_load"]
+    ]
+    min_weather_vals = [
+        annual_values[c].min() for c in ["solar_cf", "wind_cf", "winter_load"]
+    ]
+    max_weather_vals = [
+        annual_values[c].max() for c in ["solar_cf", "wind_cf", "winter_load"]
+    ]
 
     # Share of total costs in period, recovered costs of hydrogen infrastructure
-    costs_vals = [period[col] for col in ["share_total_costs", "recovered_h2_costs", "recovered_battery_costs"]]
-    min_costs_vals = [stats_periods[col].min() for col in ["share_total_costs", "recovered_h2_costs", "recovered_battery_costs"]]
-    max_costs_vals = [stats_periods[col].max() for col in ["share_total_costs", "recovered_h2_costs", "recovered_battery_costs"]]
-
-
+    costs_vals = [
+        period[col]
+        for col in [
+            "share_total_costs",
+            "recovered_h2_costs",
+            "recovered_battery_costs",
+        ]
+    ]
+    min_costs_vals = [
+        stats_periods[col].min()
+        for col in [
+            "share_total_costs",
+            "recovered_h2_costs",
+            "recovered_battery_costs",
+        ]
+    ]
+    max_costs_vals = [
+        stats_periods[col].max()
+        for col in [
+            "share_total_costs",
+            "recovered_h2_costs",
+            "recovered_battery_costs",
+        ]
+    ]
 
     # Capacity of battery dischargers and fuel cells
-    cap_vals = [annual_values.loc[net_year, c] for c in ["battery_discharger", "fuel_cells"]]
+    cap_vals = [
+        annual_values.loc[net_year, c] for c in ["battery_discharger", "fuel_cells"]
+    ]
     min_caps = [annual_values[c].min() for c in ["battery_discharger", "fuel_cells"]]
     max_caps = [annual_values[c].max() for c in ["battery_discharger", "fuel_cells"]]
 
@@ -339,89 +423,183 @@ def plot_dashboard(
     main_box = ax.get_position()
     sub_ax_width = main_box.width / n_axes
 
-    for (i, cat), name  in zip(enumerate(categories), cat_names):
+    for (i, cat), name in zip(enumerate(categories), cat_names):
         left = main_box.x0 + i * sub_ax_width
         width = sub_ax_width
         sub_ax = fig.add_axes([left, main_box.y0, width, main_box.height])
-        sub_axes.append(sub_ax)  
-    
+        sub_axes.append(sub_ax)
+
         if cat == "difficulty":
             sub_ax.bar(
                 x=[x - 0.25 for x in range(len(difficulty_ranks))],
                 height=[80 - r for r in difficulty_ranks],
-                width = 0.5,
+                width=0.5,
                 color="darkgrey",
-                alpha=0.8
+                alpha=0.8,
             )
             sub_ax.set_ylim(0, 88)
             # Annotate value
             for i, val in enumerate(difficulty_ranks):
-                sub_ax.text(i - 0.25, 80 - val, f"{val}", ha="center", va="bottom", fontsize=7, color="black")
-        
+                sub_ax.text(
+                    i - 0.25,
+                    80 - val,
+                    f"{val}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="black",
+                )
+
         if cat == "weather":
             sub_ax.bar(
-                x=[x-0.25 for x in range(len(weather_vals))],
-                bottom = min_weather_vals,
+                x=[x - 0.25 for x in range(len(weather_vals))],
+                bottom=min_weather_vals,
                 height=[a - m for a, m in zip(max_weather_vals, min_weather_vals)],
-                width = 0.5,
-                color=[c for c in ["#f9d002","#235ebc","#dd2e23"]],
-                alpha=0.8
+                width=0.5,
+                color=[c for c in ["#f9d002", "#235ebc", "#dd2e23"]],
+                alpha=0.8,
             )
             sub_ax.hlines(weather_vals[0], -0.5, 0, color="black", lw=0.5)
             sub_ax.hlines(weather_vals[1], 0.5, 1, color="black", lw=0.5)
             sub_ax.hlines(weather_vals[2], 1.5, 2, color="black", lw=0.5)
             sub_ax.set_ylim(0, 1.1)
-            
+
             # Annotate min, avg, max values
-            for i, (avg, minval, maxval, xpos), in enumerate(zip(weather_vals, min_weather_vals, max_weather_vals, [0.8, -0.3, 2.8])):
-                sub_ax.text(i-0.2, minval, f"{minval:.2f}", ha="center", va="top", fontsize=6, color="grey")
-                sub_ax.text(xpos, avg, f"{avg:.2f}", ha="center", va="bottom", fontsize=7, color="black")
-                sub_ax.text(i-0.2, maxval, f"{maxval:.2f}", ha="center", va="bottom", fontsize=6, color="grey")
+            for (
+                i,
+                (avg, minval, maxval, xpos),
+            ) in enumerate(
+                zip(weather_vals, min_weather_vals, max_weather_vals, [0.8, -0.3, 2.8])
+            ):
+                sub_ax.text(
+                    i - 0.2,
+                    minval,
+                    f"{minval:.2f}",
+                    ha="center",
+                    va="top",
+                    fontsize=6,
+                    color="grey",
+                )
+                sub_ax.text(
+                    xpos,
+                    avg,
+                    f"{avg:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="black",
+                )
+                sub_ax.text(
+                    i - 0.2,
+                    maxval,
+                    f"{maxval:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=6,
+                    color="grey",
+                )
         if cat == "cost":
             sub_ax.bar(
-                x=[x-0.25 for x in range(len(costs_vals))],
-                bottom = min_costs_vals,
+                x=[x - 0.25 for x in range(len(costs_vals))],
+                bottom=min_costs_vals,
                 height=[a - m for a, m in zip(max_costs_vals, min_costs_vals)],
-                width = 0.5,
+                width=0.5,
                 color="green",
-                alpha=0.8
+                alpha=0.8,
             )
             sub_ax.hlines(costs_vals[0], -0.5, 0, color="black", lw=0.5)
             sub_ax.hlines(costs_vals[1], 0.5, 1, color="black", lw=0.5)
             sub_ax.hlines(costs_vals[2], 1.5, 2, color="black", lw=0.5)
             sub_ax.set_ylim(0, 1.1)
             # Annotate min, avg, max values
-            for i, (avg, minval, maxval, xpos) in enumerate(zip(costs_vals, min_costs_vals, max_costs_vals, [-1.2,1.8,2.8])):
-                sub_ax.text(i - 0.2, minval, f"{minval:.2f}", ha="center", va="top", fontsize=6, color="grey")
-                sub_ax.text(xpos, avg, f"{avg:.2f}", ha="center", va="bottom", fontsize=7, color="black")
-                sub_ax.text(i - 0.2, maxval, f"{maxval:.2f}", ha="center", va="bottom", fontsize=6, color="grey")
+            for i, (avg, minval, maxval, xpos) in enumerate(
+                zip(costs_vals, min_costs_vals, max_costs_vals, [-1.2, 1.8, 2.8])
+            ):
+                sub_ax.text(
+                    i - 0.2,
+                    minval,
+                    f"{minval:.2f}",
+                    ha="center",
+                    va="top",
+                    fontsize=6,
+                    color="grey",
+                )
+                sub_ax.text(
+                    xpos,
+                    avg,
+                    f"{avg:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="black",
+                )
+                sub_ax.text(
+                    i - 0.2,
+                    maxval,
+                    f"{maxval:.2f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=6,
+                    color="grey",
+                )
         if cat == "other":
             sub_ax.bar(
                 x=[x - 0.25 for x in range(len(cap_vals))],
-                bottom = min_caps,
+                bottom=min_caps,
                 height=[a - m for a, m in zip(max_caps, min_caps)],
-                width = 0.5,
+                width=0.5,
                 color="purple",
-                alpha=0.8
+                alpha=0.8,
             )
             sub_ax.hlines(cap_vals[0], -0.5, 0, color="black", lw=0.5)
             sub_ax.hlines(cap_vals[1], 0.5, 1, color="black", lw=0.5)
             sub_ax.set_ylim(0, 250)
             # Annotate min, avg, max values
-            for i, (avg, minval, maxval, xpos) in enumerate(zip(cap_vals, min_caps, max_caps, [0.5,1.5])):
-                sub_ax.text(i - 0.2, minval, f"{minval:.0f}", ha="center", va="top", fontsize=6, color="grey")
-                sub_ax.text(xpos, avg, f"{avg:.0f}", ha="center", va="bottom", fontsize=7, color="black")
-                sub_ax.text(i - 0.2, maxval, f"{maxval:.0f}", ha="center", va="bottom", fontsize=6, color="grey")
-            
+            for i, (avg, minval, maxval, xpos) in enumerate(
+                zip(cap_vals, min_caps, max_caps, [0.5, 1.5])
+            ):
+                sub_ax.text(
+                    i - 0.2,
+                    minval,
+                    f"{minval:.0f}",
+                    ha="center",
+                    va="top",
+                    fontsize=6,
+                    color="grey",
+                )
+                sub_ax.text(
+                    xpos,
+                    avg,
+                    f"{avg:.0f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="black",
+                )
+                sub_ax.text(
+                    i - 0.2,
+                    maxval,
+                    f"{maxval:.0f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=6,
+                    color="grey",
+                )
 
-        
         # Add the value as yticklabel and no x and y labels.
         sub_ax.text(
-            0.25, 1, name, ha="center", va="bottom", fontsize=8, color="black", transform=sub_ax.transAxes
+            0.25,
+            1,
+            name,
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="black",
+            transform=sub_ax.transAxes,
         )
         # Set fixed locator
         sub_ax.set_xticks(range(len(label_names[cat])))
-        sub_ax.set_xticklabels(label_names[cat], rotation=90,fontsize=7, ha = "center")
+        sub_ax.set_xticklabels(label_names[cat], rotation=90, fontsize=7, ha="center")
 
         sub_ax.set_yticklabels([])
         sub_ax.set_ylabel("")
@@ -432,8 +610,8 @@ def plot_dashboard(
         # Remove border around axes.
         for loc in ["top", "right", "left", "right"]:
             sub_ax.spines[loc].set_visible(False)
-        #sub_ax.axis("off")
-    
+        # sub_ax.axis("off")
+
     axd["stats"].set_visible(False)
 
     ## GENERATION STACK PLOT
@@ -445,14 +623,15 @@ def plot_dashboard(
         pd.Timestamp(stats_periods.loc[event_nr, "end"]) + time_window,
         stats_periods,
         freq=freq,
-        ax=ax
+        ax=ax,
     )
     for loc in ["top", "right", "left", "right"]:
         ax.spines[loc].set_visible(False)
 
-
     if save:
-        plt.savefig(f"./plots/{config_name}/dashboard/event_{event_nr}.pdf", bbox_inches="tight")
+        plt.savefig(
+            f"./plots/{config_name}/dashboard/event_{event_nr}.pdf", bbox_inches="tight"
+        )
 
 
 def plot_gen_stack(
@@ -467,7 +646,7 @@ def plot_gen_stack(
     """Plot the generation stack with highlighted difficult periods."""
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 5))
-    
+
     p = gen_df.loc[start:end].resample(freq).mean() / 1e3
     # Ensure we have no leap days
     p = p[~((p.index.month == 2) & (p.index.day == 29))]
@@ -478,16 +657,28 @@ def plot_gen_stack(
     # Ensure we have no leap days
     loads = loads[~((loads.index.month == 2) & (loads.index.day == 29))]
 
-    gen_colors = ['#baa741', '#ff8c00', '#3dbfb0', '#5d4e29', '#88a75b', '#298c81',  '#51dbcc', '#c251ae', '#ff29d9', "#f9d002", "#6895dd", "#235ebc"]
+    gen_colors = [
+        "#baa741",
+        "#ff8c00",
+        "#3dbfb0",
+        "#5d4e29",
+        "#88a75b",
+        "#298c81",
+        "#51dbcc",
+        "#c251ae",
+        "#ff29d9",
+        "#f9d002",
+        "#6895dd",
+        "#235ebc",
+    ]
 
     # Plot the generation stack.
-    ax.stackplot(p.index, p.transpose(), colors=gen_colors, labels = p.columns)
+    ax.stackplot(p.index, p.transpose(), colors=gen_colors, labels=p.columns)
     ax.stackplot(p.index, p_neg.transpose(), colors=gen_colors)
 
     # Plot the difficult periods.
     ymin, ymax = ax.get_ylim()
     for i, period in periods.iterrows():
-
         if (
             pd.to_datetime(periods.loc[i, "start"]) > start
             and pd.to_datetime(periods.loc[i, "end"]) < end
@@ -498,27 +689,34 @@ def plot_gen_stack(
                 ymax,
                 color="grey",
                 alpha=0.3,
-                label = "SDE",
+                label="SDE",
             )
 
     # Plot load.
-    ax.plot(loads, ls = "--", color="black", label="load", lw=0.5)
+    ax.plot(loads, ls="--", color="black", label="load", lw=0.5)
     ax.set_xlim(start, end)
-    ax.legend(loc = "upper left", bbox_to_anchor=(0, 2), ncols = 4, fontsize=7)
+    ax.legend(loc="upper left", bbox_to_anchor=(0, 2), ncols=4, fontsize=7)
     ax.set_ylabel("GW")
     plt.tight_layout()
 
+
 if __name__ == "__main__":
     config_name = "stressful-weather"
-    config, scenario_def, years, opt_networks = load_opt_networks(config_name, load_networks=False)
+    config, scenario_def, years, opt_networks = load_opt_networks(
+        config_name, load_networks=False
+    )
     periods = load_periods(config)
     projection = ccrs.PlateCarree()
     cluster_nr = 4
 
     # Load onshore and offshore regions for shapefile.
-    onshore_regions = gpd.read_file(f"../resources/{config_name}/weather_year_1941/regions_onshore_base_s_90.geojson")
+    onshore_regions = gpd.read_file(
+        f"../resources/{config_name}/weather_year_1941/regions_onshore_base_s_90.geojson"
+    )
     # Load one network for reference and the layout.
-    n = pypsa.Network("../results/stressful-weather/weather_year_1941/networks/base_s_90_elec_lc1.25_Co2L.nc")
+    n = pypsa.Network(
+        "../results/stressful-weather/weather_year_1941/networks/base_s_90_elec_lc1.25_Co2L.nc"
+    )
 
     # Load all data we might need that is pre-generated in `generate_data_for_analysis.py`.
     folder = f"./processing_data/{config_name}"
@@ -528,12 +726,12 @@ if __name__ == "__main__":
     # Annual CFS for solar and wind
     annual_cfs = pd.read_csv(f"{folder}/annual_cfs.csv", index_col=0)
     # Costs: total electricity costs
-    total_costs_df = pd.read_csv(f"{folder}/total_costs.csv", index_col=[0,1])
+    total_costs_df = pd.read_csv(f"{folder}/total_costs.csv", index_col=[0, 1])
     ## SDEs
     stats_periods = pd.read_csv(f"{folder}/stats_periods.csv", index_col=0)
     gen_stacks = pd.read_csv(f"{folder}/gen_stacks.csv", index_col=0, parse_dates=True)
     # Flexibility usage and capacities
-    nodal_flex_p = pd.read_csv(f"{folder}/nodal_flex_p.csv", index_col=[0,1]) 
+    nodal_flex_p = pd.read_csv(f"{folder}/nodal_flex_p.csv", index_col=[0, 1])
     nodal_flex_u = xr.open_dataset(f"processing_data/{config_name}/nodal_flex_u.nc")
     fc_flex = nodal_flex_u["H2 fuel cell"].to_pandas().T
     fc_flex.index = total_load.index
@@ -546,42 +744,81 @@ if __name__ == "__main__":
         df = total_costs_df.loc[year]
         df.index = pd.to_datetime(df.index)
         total_costs[year] = df["0"]
-    
-    # Generate a dataframe with all necessary annual values: 
-    annual_values = collect_annual_values(ranked_years, annual_cfs, winter_load, total_costs, flex_caps, years)
+
+    # Generate a dataframe with all necessary annual values:
+    annual_values = collect_annual_values(
+        ranked_years, annual_cfs, winter_load, total_costs, flex_caps, years
+    )
 
     # Load clusters
-    clusters = pd.read_csv(f"clustering/{config_name}/clustered_vals_{cluster_nr}.csv", index_col=0)["cluster"]
+    clusters = pd.read_csv(
+        f"clustering/{config_name}/clustered_vals_{cluster_nr}.csv", index_col=0
+    )["cluster"]
     stats_periods["cluster"] = clusters
 
     # Load hulls
-    hulls_coll = load_hull_data(config_name, periods, techs = ["wind_anom", "load_anom", "price"], thres = [0.75, 0.9, 0.9])
-    hulls_markers_names = ["Wind anomaly (-)", "Load anomaly (+)", "Shadow price (+)", "Fuel cell discharge (+)"]
+    hulls_coll = load_hull_data(
+        config_name,
+        periods,
+        techs=["wind_anom", "load_anom", "price"],
+        thres=[0.75, 0.9, 0.9],
+    )
+    hulls_markers_names = [
+        "Wind anomaly (-)",
+        "Load anomaly (+)",
+        "Shadow price (+)",
+        "Fuel cell discharge (+)",
+    ]
 
     # Plot dashboard.
     for event_nr in periods.index:
         plot_dashboard(
-            config_name = "stressful-weather",
-            event_nr = event_nr,
-            stats_periods = stats_periods,
-            annual_values = annual_values,
-            kpis = ["highest_net_load", "avg_net_load", "wind_anom", "avg_rel_load", "max_fc_discharge", "duration", "normed_price_std"],
-            kpi_names = ["Peak net load [GW]","Avg. net load [GW]","Wind CF anomaly","Avg. rel. load","Max. Fuel cell discharge [GW]","Duration [h]","Regional price imbalance"],
+            config_name="stressful-weather",
+            event_nr=event_nr,
+            stats_periods=stats_periods,
+            annual_values=annual_values,
+            kpis=[
+                "highest_net_load",
+                "avg_net_load",
+                "wind_anom",
+                "avg_rel_load",
+                "max_fc_discharge",
+                "duration",
+                "normed_price_std",
+            ],
+            kpi_names=[
+                "Peak net load [GW]",
+                "Avg. net load [GW]",
+                "Wind CF anomaly",
+                "Avg. rel. load",
+                "Max. Fuel cell discharge [GW]",
+                "Duration [h]",
+                "Regional price imbalance",
+            ],
             hulls_coll=hulls_coll,
             hulls_markers_names=hulls_markers_names,
             fc_flex=fc_flex,
             onshore_regions=onshore_regions,
-            n = n,
-            projection = projection,
-            categories = ["difficulty", "weather", "cost", "other"],
-            cat_names = ["Difficulty rank", "Weather", "Costs of SDE", "Flexibility"],
-            label_names = {"difficulty": ["Total system costs", "LS design", "LS operation"], "weather":["Annual solar CF", "Annual wind CF", "Winter load"],
-            "cost": ["Share of total costs", "Recovery of FC inv.", "Recovery of battery inv."],
-            "other": ["Battery discharger \n capacity[GW]", "Fuel cell capacity \n [GW]"]},
-            gen_stacks = gen_stacks,
-            time_window = pd.Timedelta("7d"),
-            total_load = total_load,
-            freq = "3H",
-            save = True
+            n=n,
+            projection=projection,
+            categories=["difficulty", "weather", "cost", "other"],
+            cat_names=["Difficulty rank", "Weather", "Costs of SDE", "Flexibility"],
+            label_names={
+                "difficulty": ["Total system costs", "LS design", "LS operation"],
+                "weather": ["Annual solar CF", "Annual wind CF", "Winter load"],
+                "cost": [
+                    "Share of total costs",
+                    "Recovery of FC inv.",
+                    "Recovery of battery inv.",
+                ],
+                "other": [
+                    "Battery discharger \n capacity[GW]",
+                    "Fuel cell capacity \n [GW]",
+                ],
+            },
+            gen_stacks=gen_stacks,
+            time_window=pd.Timedelta("7d"),
+            total_load=total_load,
+            freq="3H",
+            save=True,
         )
-
