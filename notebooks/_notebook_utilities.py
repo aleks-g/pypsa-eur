@@ -354,13 +354,14 @@ def calculate_transmission_in_use(n):
 
     # Transmission lines
     ac_i = n.lines.index
+    ac_s_nom = n.lines.loc[ac_i, "s_nom_opt"] 
     ac_in_use = (
-        (n.lines_t.p0.loc[:, ac_i].abs()) / (0.99 * n.lines_t.p0.loc[:, ac_i].max())
+        (n.lines_t.p0.loc[:, ac_i].abs()) / (0.99 * ac_s_nom * n.lines.loc[ac_i, "s_max_pu"])
     ).clip(upper=1)
 
     # Combine DC and AC transmission data
     transmission_in_use = pd.concat([dc_in_use, ac_in_use], axis=1)
-    transmission_p_nom = pd.concat([dc_p_nom, n.lines_t.p0.loc[:, ac_i].max()], axis=0)
+    transmission_p_nom = pd.concat([dc_p_nom, ac_s_nom], axis=0)
 
     return transmission_in_use, transmission_p_nom
 
@@ -612,7 +613,7 @@ def nodal_flexibility(
                     ) / flex_p.loc[y, t]
                 elif t == "AC":
                     i = n.lines[((n.lines.bus0 == node) | (n.lines.bus1 == node))].index
-                    flex_p.loc[y, t] = n.lines.loc[i, "s_nom_opt"].sum()
+                    flex_p.loc[y, t] = (n.lines.loc[i, "s_nom_opt"]).sum()
                     flex_u.loc[:, t] = (
                         (
                             transmission_in_use[y].loc[:, i]
@@ -744,7 +745,7 @@ def plot_cluster_anomalies(
             gridspec_kw={"hspace": 0.6},
         )
         if len(cluster_names) == cluster_nr:
-            fig.suptitle(f"Cluster {cluster}: {cluster_names[cluster]}", fontsize=16)
+            fig.suptitle(f"{cluster_names[cluster]}", fontsize=16)
         else:
             fig.suptitle(f"Cluster {cluster}", fontsize=16)
 
@@ -1007,7 +1008,7 @@ def plot_duals(
     cb.set_ticklabels([str(t) for t in right_ticks])
     cax.xaxis.set_minor_locator(mpl.ticker.NullLocator())
     cax.set_frame_on(False)
-    axs[1].plot([], [], c="k", lw=2, label="S.d. events")
+    axs[1].plot([], [], c="k", lw=2, label="System-defining events")
     if alt_periods is not None:
         axs[1].plot([], [], c="royalblue", lw=2, label="Alternative events")
     # Place legend to the right of the colour bar.
@@ -1321,9 +1322,9 @@ def plot_period_anomalies(
         plt.show()
 
 
-def plot_scatter(ax, x_data, y_data, x_label, y_label, title):
+def plot_scatter(ax, x_data, y_data, x_label, y_label, title, color="blue"):
     """Plot a scatter plot with correlation coefficient annotated."""
-    ax.scatter(x_data, y_data, s=1)
+    ax.scatter(x_data, y_data, s=1, color=color)
     ax.set_xlabel(x_label, fontsize=10)
     ax.set_ylabel(y_label, fontsize=10)
     ax.set_title(title, fontsize=12)
