@@ -4,32 +4,21 @@
 
 """Plot the dashboard for system-defining events."""
 
-import datetime as dt
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 import pypsa
-import yaml
 import xarray as xr
-from scipy.stats import gaussian_kde, wasserstein_distance
 from scipy.spatial import ConvexHull
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 import matplotlib.dates as mdates
-from matplotlib.path import Path
-from matplotlib.lines import Line2D
-import matplotlib.colors as mcolors
 import seaborn as sns
 
 import geopandas as gpd
-import cartopy
 import cartopy.crs as ccrs
-
-from typing import NamedTuple, Optional
 
 from _notebook_utilities import *
 from _plot_affected_areas import *
@@ -206,13 +195,13 @@ def plot_dashboard(
     """
     fig, axd = plt.subplot_mosaic(
         mosaic=[["kpi", "map", "stats"], ["gen", "gen", "gen"]],
-        width_ratios=[1, 1, 1],
-        height_ratios=[3, 1],
-        gridspec_kw={"hspace": 1},
+        width_ratios=[1, 1, 1.6],
+        height_ratios=[2, 1],
+        gridspec_kw={"hspace": 0.8},
         per_subplot_kw={
             "map": {"projection": projection},
         },
-        figsize=(30 * cm, 12 * cm),
+        figsize=(18 * cm, 14 * cm),
     )
 
     period = stats_periods.loc[event_nr]
@@ -228,7 +217,7 @@ def plot_dashboard(
     # Create horizontal subplots
     for (i, kpi), name in zip(enumerate(kpis), kpi_names):
         bottom = main_box.y0 + i * sub_ax_height
-        height = sub_ax_height
+        # height = sub_ax_height
         sub_ax = fig.add_axes([main_box.x0, bottom, main_box.width, sub_ax_height])
         sub_axes.append(sub_ax)
 
@@ -322,7 +311,7 @@ def plot_dashboard(
             name,
             ha="center",
             va="bottom",
-            fontsize=8,
+            fontsize=7,
             color="black",
             transform=sub_ax.transAxes,
         )
@@ -336,11 +325,12 @@ def plot_dashboard(
     sub_axes[0].legend(
         ["All SDEs", "Same cluster", "SDE"],
         loc="upper left",
-        bbox_to_anchor=(0, 0),
+        bbox_to_anchor=(0.25, -0.2),
         fontsize=7,
-        ncols=3,
+        ncols=1,
     )
     axd["kpi"].set_visible(False)
+    
 
     ### MAP
     ax = axd["map"]
@@ -367,6 +357,7 @@ def plot_dashboard(
 
     ## ANNUAL STATS
     ax = axd["stats"]
+
 
     # Get annual values.
     net_year = get_net_year(pd.Timestamp(period.start))
@@ -593,7 +584,7 @@ def plot_dashboard(
             name,
             ha="center",
             va="bottom",
-            fontsize=8,
+            fontsize=7,
             color="black",
             transform=sub_ax.transAxes,
         )
@@ -613,6 +604,7 @@ def plot_dashboard(
         # sub_ax.axis("off")
 
     axd["stats"].set_visible(False)
+    ax.text(0, 0.95, "(c)", fontsize=8, transform=ax.transAxes)
 
     ## GENERATION STACK PLOT
     ax = axd["gen"]
@@ -625,8 +617,34 @@ def plot_dashboard(
         freq=freq,
         ax=ax,
     )
-    for loc in ["top", "right", "left", "right"]:
-        ax.spines[loc].set_visible(False)
+    ax.hlines(y=0, xmin=gen_stacks.index[0], xmax=gen_stacks.index[-1], color="black", lw=0.5)
+    sns.despine(ax=ax, left=True, bottom=True)
+    ax.tick_params(labelsize=7, length=0, which="both", axis="both")
+    ax.set_title("Generation stack [GW]", fontsize=8)
+    ax.set_ylabel("")
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=2))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=1))
+    ax.yaxis.set_major_locator(MultipleLocator(200))
+    ax.yaxis.set_minor_locator(AutoMinorLocator(2))
+
+    ax.grid(axis="x", which="both", color="grey", linestyle=":", linewidth=0.5)
+    ax.grid(axis="y", which="major", color="grey", linestyle="--", linewidth=0.5)
+    ax.grid(axis="y", which="minor", color="grey", linestyle=":", linewidth=0.5)
+
+    handles, labels = ax.get_legend_handles_labels()
+    pretty_labels = ["Biomass", "Nuclear", "Run-of-river", "Battery discharge", "Battery charge", "Hydro", "PHS", "Fuel cells", "Electrolysis", "Solar", "Offshore wind", "Onshore wind", "SDE", "Load"]
+    
+
+    ax.legend(labels=pretty_labels, handles = handles, bbox_to_anchor=(0.95, -0.18), fontsize=7, ncols=5)
+
+    # Add labels to plots.
+    for numb, coord in zip(["(a)", "(b)", "(c)", "(d)"], [(0.09, 0.88), (0.33, 0.88), (0.57, 0.88), (0.09, 0.3)]):
+        fig.text(
+            coord[0],
+            coord[1],
+            numb,
+            fontsize=8,
+        )
 
     if save:
         plt.savefig(
@@ -693,11 +711,12 @@ def plot_gen_stack(
             )
 
     # Plot load.
-    ax.plot(loads, ls="--", color="black", label="load", lw=0.5)
+    ax.plot(loads, ls="--", color="black", label="load", lw=1)
     ax.set_xlim(start, end)
     ax.legend(loc="upper left", bbox_to_anchor=(0, 2), ncols=4, fontsize=7)
     ax.set_ylabel("GW")
     plt.tight_layout()
+
 
 
 if __name__ == "__main__":
@@ -706,7 +725,7 @@ if __name__ == "__main__":
         config_name, load_networks=False
     )
     periods = load_periods(config)
-    projection = ccrs.PlateCarree()
+    projection = ccrs.LambertConformal(central_longitude=10, central_latitude=50)
     cluster_nr = 4
 
     # Load onshore and offshore regions for shapefile.

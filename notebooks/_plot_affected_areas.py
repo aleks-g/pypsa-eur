@@ -4,21 +4,10 @@
 
 """Functions for plotting affected areas on maps based on clustered data."""
 
-import warnings
-warnings.simplefilter(action="ignore", category=FutureWarning)
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    message="facecolor will have no effect as it has been defined as",
-)
-
-import yaml
 import pypsa
-import datetime as dt
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.path import Path
 from matplotlib.patches import Polygon, Patch
 
 import pandas as pd
@@ -32,6 +21,14 @@ from scipy.spatial import ConvexHull
 import geopy.distance
 
 from _notebook_utilities import *
+
+import warnings
+warnings.simplefilter(action="ignore", category=FutureWarning)
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    message="facecolor will have no effect as it has been defined as",
+)
 
 def in_or_on_hull(p: np.ndarray, hull: ConvexHull, threshold: float = 0) -> bool:
     """Check if a point is in or on the convex hull.
@@ -533,12 +530,13 @@ def plot_affected_areas(
         linewidth=0,
         zorder=1,
         )
+    ax.set_title("Fuel cell usage", fontsize=8)
     
     # Add cbar.
     sm = plt.cm.ScalarMappable(cmap=fill_cmap, norm=fill_norm)
     sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, orientation="vertical", pad=0.01, aspect=20)
-    cbar.set_label("Fuel cell usage", fontsize=7)
+    cbar = plt.colorbar(sm, ax=ax, orientation="vertical", pad=0.05, aspect=25, shrink=0.75)
+    
     ticks = [0, 0.25, 0.5, 0.75, 1]
     cbar.set_ticks(ticks)
     cbar.set_ticklabels([f"{t:.0%}" for t in ticks], fontsize=6)
@@ -548,11 +546,11 @@ def plot_affected_areas(
 
     for hull, tech, colour, pretty_name, hatch in zip(hulls, techs, colours, pretty_names, hatches):
         # For now, only edges, no filling.
-        patch = Polygon(xy = hull.points[hull.vertices], closed=True, ec = colour, fill = False, lw = 1, zorder=2)
+        hull_transformed = projection.transform_points(ccrs.PlateCarree(), hull.points[hull.vertices][:,0], hull.points[hull.vertices][:,1])
+        patch = Polygon(xy=hull_transformed[:, :2], closed=True, ec=colour, fill=False, lw=1, zorder=2)
         legend_elements.append(Patch(ec = colour, fill = False, lw = 1, label=pretty_name))
         ax.add_patch(patch)
     return legend_elements
-
 def grid_wind(
     config_name: str,
     periods: pd.DataFrame,
