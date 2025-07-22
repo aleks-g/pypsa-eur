@@ -15,20 +15,19 @@ import pypsa
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.path import Path
+from scipy.spatial import ConvexHull
+from matplotlib.patches import Polygon, Patch
 
-mpl.rcParams["figure.dpi"] = 150
+import geopandas as gpd
+import cartopy.crs as ccrs
 
 import pandas as pd
 import numpy as np
-import seaborn
-
-from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 import matplotlib.dates as mdates
-from matplotlib.lines import Line2D
+from typing import Optional
 
-from typing import NamedTuple, Optional
-
+mpl.rcParams["figure.dpi"] = 150
 
 ## COMPUTATIONS AND INITIATION
 
@@ -94,7 +93,6 @@ def compute_all_duals(
     """
     years = list(opt_networks.keys())
     # Electricity costs
-    all_prices = pd.concat([opt_networks[y].buses_t["marginal_price"] for y in years])
     nodal_costs = {
         y: opt_networks[y].buses_t["marginal_price"] * opt_networks[y].loads_t["p_set"]
         for y in years
@@ -144,6 +142,61 @@ def compute_all_duals(
             return total_costs, total_storage_costs, total_fc_costs
 
 
+def compute_anomalies_periods(
+    r: gpd.GeoDataFrame,
+    n: pypsa.Network,
+    periods: pd.DataFrame,
+    caps: pd.DataFrame,
+    cfs: pd.DataFrame,
+    means: pd.DataFrame,
+    tech: str = "wind",
+):
+    """Compute the anomalies for the given periods and technology.
+    Parameters:
+    -----------
+    r: gpd.GeoDataFrame
+        GeoDataFrame with the regions.
+    n: pypsa.Network
+        PyPSA network.
+    periods: pd.DataFrame
+        DataFrame with the periods.
+    caps: pd.DataFrame
+        DataFrame with the capacities.
+    cfs: pd.DataFrame
+        DataFrame with the capacity factors.
+    means: pd.DataFrame
+        DataFrame with the means.
+    tech: str
+        Technology for which the anomalies are computed. Default is "wind".
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with the anomalies for the given periods and technology.
+    """
+    anom_df = pd.DataFrame(index=r.index, columns=periods.index)
+    for i, period in periods.iterrows():
+        start, end = period.start, period.end
+        net_year = get_net_year(start)
+        shifted_start = (
+            f"1942{str(start)[4:]}" if start.month < 7 else f"1941{str(start)[4:]}"
+        )
+        shifted_end = f"1942{str(end)[4:]}" if end.month < 7 else f"1941{str(end)[4:]}"
+
+        usual_gen = (
+            means.loc[shifted_start:shifted_end].mean(axis=0) * caps[str(net_year)]
+        )
+        event_gen = cfs.loc[start:end].mean(axis=0) * caps[str(net_year)]
+        gen_anom = event_gen - usual_gen
+        if tech not in ["load", "net_load", "price"]:
+            gen_anom.index = n.generators.loc[gen_anom.index].bus.values
+            gen_anom = gen_anom.groupby(gen_anom.index).sum().round(0)
+        anom_df[i] = gen_anom
+    return anom_df
+
+
+
+
+
 # Get network for a given date. Here, opt_networks[n] is defined over the period n-07-01 to (n+1)-06-30.
 def get_net_year(date):
     """Get the year of the period from the date."""
@@ -173,6 +226,17 @@ def load_opt_networks(
         String defining the configuration options.
     load_networks: bool
         If True, load the optimal networks.
+
+    Returns:
+    --------
+    config: dict
+        Configuration dictionary loaded from the YAML file.
+    scenario_def: dict
+        Scenario definition dictionary loaded from the YAML file.
+    years: list
+        List of years for which the scenarios are defined.
+    opt_networks: dict or None
+        Dictionary of optimal networks indexed by year, or None if `load_networks` is False.
     """
 
     # Load the configuration
@@ -205,7 +269,7 @@ def load_opt_networks(
 
 def load_periods(config: dict, clusters: str = None, ll: str = None, opts: str = None):
     """Load the system-defining events based on the configuration. The manual input is useful, if more than one scenario is being considered.
-    
+
     Parameters:
     -----------
     config: dict
@@ -215,7 +279,13 @@ def load_periods(config: dict, clusters: str = None, ll: str = None, opts: str =
     ll: str
         Manual input for transmission limits.
     opts: str
-        Manual input for options."""
+        Manual input for options.
+        
+    Returns:
+    --------
+    periods: pd.DataFrame
+        DataFrame with the periods, indexed by their start time, with columns for start, end, and peak hour.
+    """
     scen_name = config["difficult_periods"]["scen_name"]
     if clusters is None:
         clusters = config["scenario"]["clusters"][0]
@@ -234,6 +304,43 @@ def load_periods(config: dict, clusters: str = None, ll: str = None, opts: str =
     for col in ["start", "end", "peak_hour"]:
         periods[col] = periods[col].dt.tz_localize(None)
     return periods
+
+
+def load_sens_periods(sens_config, cost_thresholds):
+    """Load the system-defining events based on the configuration.
+
+    Parameters:
+    -----------
+    sens_config: dict
+        Configuration for the sensitivity analysis.
+    cost_thresholds: list
+        List of cost thresholds to consider for the sensitivity analysis.
+
+    Returns:
+    --------
+    sens_periods: dict
+        Dictionary with cost thresholds as keys and DataFrames of periods as values."""
+    file_names = {cost_threshold: {} for cost_threshold in cost_thresholds}
+    sens_periods = {cost_threshold: {} for cost_threshold in cost_thresholds}
+    for cost_threshold in cost_thresholds:
+        dict_name = f"new_store_1941-2021_{cost_threshold}bn_12-336h"
+        clusters = sens_config["scenario"]["clusters"]
+        lls = sens_config["scenario"]["ll"]
+        optss = sens_config["scenario"]["opts"]
+
+        # Take the product of the lists of clusters, lls and optss
+        for cluster in clusters:
+            for ll in lls:
+                for opts in optss:
+                    periods_name = f"sde_{dict_name}_{cluster}_elec_l{ll}_{opts}"
+                    file_names[cost_threshold][(cluster, ll, opts)] = periods_name
+                    sens_periods[cost_threshold][(cluster, ll, opts)] = pd.read_csv(
+                        f"../results/periods/{periods_name}.csv",
+                        index_col=0,
+                        parse_dates=["start", "end", "peak_hour"],
+                    )
+
+    return sens_periods
 
 
 def optimal_costs(
@@ -271,7 +378,15 @@ def optimal_costs(
     pretty_names: dict
         Dictionary of pretty names for the technologies.
     storage_units: bool
-        If True, storage units are considered, otherwise stores."""
+        If True, storage units are considered, otherwise stores.
+        
+    Returns:
+    --------
+    opt_objs: pd.DataFrame
+        DataFrame with the optimal costs for the technologies, indexed by year.
+    obj_totals: pd.DataFrame
+        DataFrame with the total objective values for the optimal networks, indexed by year."""
+    
     years = list(opt_networks.keys())
     opt_objs = pd.DataFrame(index=years, columns=techs)
     vres = [
@@ -346,6 +461,13 @@ def calculate_transmission_in_use(n):
     Parameters:
     -----------
     n: PyPSA network.
+
+    Returns:
+    --------
+    transmission_in_use: pd.DataFrame
+        DataFrame with the in-use ratios for transmission links and lines, indexed by snapshot.
+    transmission_p_nom: pd.Series
+        Series with the nominal capacities for transmission links and lines.
     """
     # Transmission links
     dc_i = n.links[n.links.carrier == "DC"].index
@@ -354,9 +476,10 @@ def calculate_transmission_in_use(n):
 
     # Transmission lines
     ac_i = n.lines.index
-    ac_s_nom = n.lines.loc[ac_i, "s_nom_opt"] 
+    ac_s_nom = n.lines.loc[ac_i, "s_nom_opt"]
     ac_in_use = (
-        (n.lines_t.p0.loc[:, ac_i].abs()) / (0.99 * ac_s_nom * n.lines.loc[ac_i, "s_max_pu"])
+        (n.lines_t.p0.loc[:, ac_i].abs())
+        / (0.99 * ac_s_nom * n.lines.loc[ac_i, "s_max_pu"])
     ).clip(upper=1)
 
     # Combine DC and AC transmission data
@@ -372,6 +495,13 @@ def calculate_dispatchable_in_use(n):
     Parameters:
     -----------
     n: PyPSA network.
+
+    Returns:
+    --------
+    dispatchable_in_use: pd.DataFrame
+        DataFrame with the in-use ratios for dispatchable technologies, indexed by snapshot.
+    dispatchable_p_nom: pd.Series
+        Series with the nominal capacities for dispatchable technologies.
     """
     # Dispatchable technologies
     biomass_i = n.generators[n.generators.carrier == "biomass"].index
@@ -409,6 +539,13 @@ def calculate_storage_discharge_in_use(n):
     Parameters:
     -----------
     n: PyPSA network.
+
+    Returns:
+    --------
+    storage_discharge_in_use: pd.DataFrame
+        DataFrame with the in-use ratios for storage discharge technologies, indexed by snapshot.
+    storage_p_nom: pd.Series
+        Series with the nominal capacities for storage discharge technologies.
     """
     # Storage discharge
     fuel_cells_i = n.links[n.links.carrier == "H2 fuel cell"].index
@@ -445,12 +582,67 @@ def calculate_storage_discharge_in_use(n):
     return storage_discharge_in_use, storage_p_nom
 
 
+def clean_incidence_matrix(
+    periods: pd.DataFrame,
+    sens_periods: dict,
+    scenario_list: list,
+):
+    """Create a cleaned incidence matrix for the sensitivity periods.
+
+    Parameters:
+    -----------
+    periods: pd.DataFrame
+        DataFrame with the periods.
+    sens_periods: dict
+        Dictionary with the sensitivity periods, where keys are scenario names and values scenario names.
+    scenario_list: list
+        List of scenarios to consider in the incidence matrix.
+
+    Returns:
+    --------
+    matrix: np.ndarray
+        Incidence matrix where rows correspond to scenarios and columns to periods.
+    """
+    matrix = np.zeros((len(scenario_list), len(periods)))
+    for costs in reversed(sens_periods.keys()):
+        for i, scenar in enumerate(scenario_list):
+            if scenar == (90, "c1.25", "Co2L0.0"):
+                matrix[i, :] = 4
+            else:
+                alt_periods = sens_periods[costs][scenar]
+                if len(alt_periods) == 0:
+                    matrix[i, :] = 0
+                else:
+                    for j, ind in enumerate(periods.index):
+                        period = periods.loc[ind]
+                        start = period.start.tz_localize(tz="UTC")
+                        end = period.end.tz_localize(tz="UTC")
+                        time_slice = pd.date_range(start, end, freq="h")
+                        for k, alt_period in alt_periods.iterrows():
+                            alt_time_slice = pd.date_range(
+                                alt_period.start, alt_period.end, freq="h"
+                            )
+                            if (
+                                len(set(time_slice).intersection(set(alt_time_slice)))
+                                > 0
+                            ):
+                                matrix[i, j] += 1
+                                break
+    return matrix
+
+
 def coarse_system_flex(m):
     """Calculate the coarse system flexibility for transmission, dispatchable and storage technologies.
 
     Parameters:
     -----------
     m: PyPSA network.
+
+    Returns:
+    --------
+    system_flex_coarse: pd.DataFrame
+        DataFrame with the coarse system flexibility for transmission, dispatchable and storage discharge technologies, indexed by snapshot.
+
     """
     transmission_in_use, transmission_p_nom = calculate_transmission_in_use(m)
     dispatchable_in_use, dispatchable_p_nom = calculate_dispatchable_in_use(m)
@@ -480,6 +672,11 @@ def detailed_system_flex(m):
     Parameters:
     -----------
     m: PyPSA network.
+
+    Returns:
+    --------
+    system_flex_detailed: pd.DataFrame
+        DataFrame with the detailed system flexibility for the different technologies, indexed by snapshot.
     """
     transmission_in_use, transmission_p_nom = calculate_transmission_in_use(m)
     dispatchable_in_use, dispatchable_p_nom = calculate_dispatchable_in_use(m)
@@ -574,6 +771,13 @@ def nodal_flexibility(
         List of nodes.
     tech: list
         List of technologies.
+
+    Returns:
+    --------
+    nodal_flex_p: dict
+        Dictionary with nodal flexibility capacities for each technology, indexed by node and year.
+    nodal_flex_u: dict
+        Dictionary with nodal flexibility in-use ratios for each technology, indexed by node and year.
     """
     nodal_flex_u = {}
     nodal_flex_p = {}
@@ -674,6 +878,407 @@ def nodal_flexibility(
 
 
 ## PLOTTING
+
+
+def plot_affected_areas(
+    config_name: str,
+    period: pd.Series,
+    event_nr: int,
+    hulls: list[ConvexHull],
+    techs: list[str],
+    pretty_names: list[str],
+    colours: list[str],
+    fill_df: pd.DataFrame,
+    fill_tech: str,
+    fill_norm: mpl.colors.Normalize,
+    fill_cmap: str,
+    regions: gpd.GeoDataFrame,
+    n: pypsa.Network,
+    projection: ccrs.Projection,
+    ax: plt.Axes = None,
+    save: bool = False,
+) -> list:
+    """Plot affected areas on a map based on pre-computed hulls.
+
+    Parameters:
+    -----------
+    config_name: str
+        Name of the configuration
+    period: pd.Series
+        Period data for the event
+    event_nr: int
+        Event number
+    hulls: list[ConvexHull]
+        List of pre-computed hulls for each technology
+    techs: list[str]
+        List of technology names
+    pretty_names: list[str]
+        Pretty names for technologies for the legend
+    colours: list[str]
+        Colors to use for the hulls
+    fill_df: pd.DataFrame
+        Data to use for filling in the regions
+    fill_tech: str
+        Technology to use for coloring regions
+    fill_norm: mpl.colors.Normalize
+        Color normalization for the fill
+    fill_cmap: str
+        Colormap for the fill
+    regions: gpd.GeoDataFrame
+        Regions to plot
+    n: pypsa.Network
+        Network to plot
+    projection: ccrs.Projection
+        Projection to use
+    ax: plt.Axes, optional
+        Axes to plot on
+    save: bool, default False
+        Whether to save the plot
+    """
+    if ax is None:
+        fig, ax = plt.subplots(
+            1, 1, figsize=(10, 10), subplot_kw={"projection": projection}
+        )
+    n.plot(
+        ax=ax,
+        bus_sizes=0,
+        bus_colors="black",
+        line_widths=0,
+        link_widths=0,
+        link_colors="black",
+        line_colors="black",
+        color_geomap=True,
+    )
+
+    start = period.start
+    end = period.end
+
+    r = regions.set_index("name")
+    r["x"], r["y"] = n.buses.x, n.buses.y
+    r = gpd.geodataframe.GeoDataFrame(r, crs="EPSG:4326")
+    r = r.to_crs(projection.proj4_init)
+
+    r[fill_tech] = fill_df.loc[start:end].mean()
+
+    r.plot(
+        ax=ax,
+        column=fill_tech,
+        cmap=fill_cmap,
+        norm=fill_norm,
+        alpha=0.6,
+        linewidth=0,
+        zorder=1,
+    )
+    ax.set_title("Fuel cell usage", fontsize=8)
+
+    # Add cbar.
+    sm = plt.cm.ScalarMappable(cmap=fill_cmap, norm=fill_norm)
+    sm.set_array([])
+    cbar = plt.colorbar(
+        sm, ax=ax, orientation="vertical", pad=0.05, aspect=25, shrink=0.75
+    )
+
+    ticks = [0, 0.25, 0.5, 0.75, 1]
+    cbar.set_ticks(ticks)
+    cbar.set_ticklabels([f"{t:.0%}" for t in ticks], fontsize=6)
+
+    legend_elements = []
+    hatches = [None, None, None, "x", "/", "o", ".", "*", "O", "-"]
+
+    for hull, tech, colour, pretty_name, hatch in zip(
+        hulls, techs, colours, pretty_names, hatches
+    ):
+        # For now, only edges, no filling.
+        hull_transformed = projection.transform_points(
+            ccrs.PlateCarree(),
+            hull.points[hull.vertices][:, 0],
+            hull.points[hull.vertices][:, 1],
+        )
+        patch = Polygon(
+            xy=hull_transformed[:, :2],
+            closed=True,
+            ec=colour,
+            fill=False,
+            lw=1,
+            zorder=2,
+        )
+        legend_elements.append(Patch(ec=colour, fill=False, lw=1, label=pretty_name))
+        ax.add_patch(patch)
+    return legend_elements
+
+
+def plot_anomalies(
+    tech: str,
+    n: pypsa.Network,
+    cmap: mpl.colors.ListedColormap,
+    norm: mpl.colors.BoundaryNorm,
+    regions: gpd.GeoDataFrame,
+    periods: pd.DataFrame,
+    caps: pd.DataFrame,
+    cfs: pd.DataFrame,
+    means: pd.DataFrame,
+    ax: plt.Axes,
+    projection: ccrs.Projection = ccrs.PlateCarree(),
+    cbar: bool = True,
+    cbar_label: str = None,
+    offshore_regions: gpd.GeoDataFrame = None,
+    scaling_factor: float = 1,
+):
+    """Plot the anomalies for the given technology and network.
+    Parameters:
+    -----------
+    tech: str
+        Technology for which the anomalies are plotted.
+    n: pypsa.Network
+        PyPSA network.
+    cmap: mpl.colors.ListedColormap
+        Colormap for the anomalies.
+    norm: mpl.colors.BoundaryNorm
+        Normalization for the colormap.
+    regions: gpd.GeoDataFrame
+        GeoDataFrame with the regions.
+    periods: pd.DataFrame
+        DataFrame with the system-defining events.
+    caps: pd.DataFrame
+        DataFrame with the capacities.
+    cfs: pd.DataFrame
+        DataFrame with the capacity factors.
+    means: pd.DataFrame
+        DataFrame with the means.
+    ax: plt.Axes
+        Axes to plot on.
+    projection: ccrs.Projection
+        Projection for the plot.
+    cbar: bool
+        If True, add a colorbar to the plot.
+    cbar_label: str
+        Label for the colorbar.
+    offshore_regions: gpd.GeoDataFrame
+        GeoDataFrame with the offshore regions.
+    scaling_factor: float
+        Scaling factor for the anomalies.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(
+            subplot_kw={"projection": projection},
+            figsize=(6 * cm, 6 * cm),
+        )
+    if tech == "wind":
+        if offshore_regions is None:
+            print("No offshore regions provided, using onshore regions.")
+            caps = caps.filter(like="onwind", axis=0)
+            cfs = cfs.filter(like="onwind", axis=1)
+            means = means.filter(like="onwind", axis=1)
+
+    n.plot(ax=ax, bus_sizes=0, line_widths=0, link_widths=0)
+
+    r = regions.set_index("name")
+    r["x"], r["y"] = n.buses.x, n.buses.y
+    r = gpd.geodataframe.GeoDataFrame(r, crs="EPSG:4326")
+    r = r.to_crs(projection.proj4_init)
+
+    r["mean_anom"] = compute_anomalies_periods(
+        r,
+        n,
+        periods,
+        caps,
+        cfs,
+        means,
+        tech,
+    ).mean(axis=1)
+    r["mean_anom"] *= scaling_factor
+
+    r.plot(
+        ax=ax,
+        column="mean_anom",
+        cmap=cmap,
+        norm=norm,
+        alpha=0.6,
+        linewidth=0,
+        zorder=1,
+    )
+    if offshore_regions is not None:
+        off_r = offshore_regions.set_index("name")
+        off_r["x"], off_r["y"] = n.buses.x, n.buses.y
+        off_r = gpd.geodataframe.GeoDataFrame(off_r, crs="EPSG:4326")
+        off_r = off_r.to_crs(projection.proj4_init)
+
+        off_caps = caps.filter(like="offwind", axis=0)
+        off_cfs = cfs.filter(like="offwind", axis=1)
+        off_means = means.filter(like="offwind", axis=1)
+
+        off_r["mean_anom"] = compute_anomalies_periods(
+            off_r,
+            n,
+            periods,
+            off_caps,
+            off_cfs,
+            off_means,
+        ).mean(axis=1)
+        off_r["mean_anom"] *= scaling_factor
+        off_r.plot(
+            ax=ax,
+            column="mean_anom",
+            cmap=cmap,
+            norm=norm,
+            alpha=0.6,
+            linewidth=0,
+            zorder=1,
+        )
+    if cbar:
+        cbar = plt.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
+            ax=ax,
+            orientation="horizontal",
+            pad=0.01,
+            aspect=20,
+            shrink=0.9,
+            fraction=0.05,
+        )
+        cbar.set_label(f"{cbar_label}", fontsize=7)
+        cbar.ax.tick_params(labelsize=7)
+    if offshore_regions is not None:
+        return r, off_r
+    return r
+
+
+def plot_clean_incidence_matrix(
+    m: np.ndarray,
+    ylabels: list,
+    cmap: mpl.colors.ListedColormap = mpl.colors.ListedColormap(
+        ["white", "mistyrose", "tomato", "maroon", "cornflowerblue"]
+    ),
+    ax: plt.Axes = None,
+):
+    """Plot a clean incidence matrix with hatches for zero values.
+
+    Parameters:
+    -----------
+    m: np.ndarray
+        The incidence matrix to plot.
+    ylabels: list
+        Labels for the y-axis.
+    cmap: mpl.colors.ListedColormap
+        Colormap to use for the matrix.
+    ax: plt.Axes
+        Axes to plot on. If None, a new figure and axes are created.
+    """
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    im = ax.imshow(m, cmap=cmap, vmin=0, vmax=4)
+    # Mark all values that are 0 with a hatch.
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            if m[i, j] == 0:
+                ax.text(j, i, "X", ha="center", va="center", color="black")
+    ax.set_yticks(np.arange(len(ylabels)))
+    ax.set_yticklabels(ylabels)
+    return im
+
+
+def plot_cluster_anomaly(
+    flex_anomaly: pd.DataFrame,
+    system_anomaly: pd.DataFrame,
+    periods: pd.DataFrame,
+    event_nr: int,
+    tech: list = [
+        "biomass",
+        "nuclear",
+        "H2 fuel cell",
+        "battery discharger",
+        "PHS",
+        "hydro",
+    ],
+    tech_colours: list = [
+        "#baa741",
+        "#ff8c00",
+        "#c251ae",
+        "#ace37f",
+        "#51dbcc",
+        "#298c81",
+    ],
+    plot_all_system: bool = True,
+    resampled: str = "1D",
+    ax=None,
+):
+    """Plot the flexibility and system anomalies for the all clusters.
+
+    Parameters:
+    -----------
+    flex_anomaly: pd.DataFrame
+        Flexibility anomalies per technology.
+    system_anomaly: pd.DataFrame
+        System anomalies (net load, load, wind, solar).
+    periods: pd.DataFrame
+        System-defining events.
+    tech: list
+        List of technologies.
+    tech_colours: list
+        List of colours for the technologies.
+    plot_all_system: bool
+        If True, plot all system anomalies.
+    resampled: str
+        Resampling frequency.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6 * cm, 4 * cm))
+    start = periods.loc[event_nr, "start"]
+    end = periods.loc[event_nr, "end"]
+
+    # Plot stack plot of flexibility
+    p = (
+        flex_anomaly.loc[start:end, tech].astype(float).resample(resampled).mean() / 1e3
+    )  # in GW
+    p_neg = p.clip(upper=0)
+    p_pos = p.clip(lower=0)
+    ax.stackplot(p_pos.index, p_pos.T, colors=tech_colours, labels=p_pos.columns)
+    ax.stackplot(p_neg.index, p_neg.T, colors=tech_colours)
+    # Plot net load anomaly.
+    net_load = (
+        system_anomaly.loc[start:end, "Net load anomaly"].resample(resampled).mean()
+        / 1e3
+    )
+    ax.plot(
+        net_load.index,
+        net_load,
+        color="black",
+        lw=1,
+        ls="--",
+        label="Net load anomaly",
+    )
+    if plot_all_system:
+        load = (
+            system_anomaly.loc[start:end, "Load anomaly"].resample(resampled).mean()
+            / 1e3
+        )
+        wind = (
+            system_anomaly.loc[start:end, "Wind anomaly"].resample(resampled).mean()
+            / 1e3
+        )
+        solar = (
+            system_anomaly.loc[start:end, "Solar anomaly"].resample(resampled).mean()
+            / 1e3
+        )
+        ax.plot(load.index, load, color="red", lw=1, ls=":", label="Load anomaly")
+        ax.plot(wind.index, wind, color="blue", lw=1, ls=":", label="Wind anomaly")
+        ax.plot(
+            solar.index,
+            solar,
+            color="grey",
+            lw=1,
+            ls=":",
+            label="Solar anomaly",
+        )
+        ax.set_ylabel("Anomaly [GW]")
+        ax.set_xlabel(f"{start.date()} - {end.date()}", fontsize=8)
+        # Set x-ticks to only show day and month
+        ax.xaxis.set_major_locator(mdates.DayLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
+        # Change font size of x tick labels.
+        ax.tick_params(axis="x", labelsize=8, rotation=90)
+    return ax
 
 
 def plot_cluster_anomalies(
@@ -1023,90 +1628,86 @@ def plot_duals(
     return fig, axs
 
 
-def plot_generation_stack(
+def plot_fc_util(
     n: pypsa.Network,
-    start: pd.Timestamp,
-    end: pd.Timestamp,
+    cmap: mpl.colors.ListedColormap,
+    norm: mpl.colors.BoundaryNorm,
+    regions: gpd.GeoDataFrame,
     periods: pd.DataFrame,
-    freq: str = "1D",
-    new_index: pd.TimedeltaIndex = None,
-    ax=None,
+    fc_flex: pd.DataFrame,
+    ax: plt.Axes,
+    projection: ccrs.Projection = ccrs.PlateCarree(),
+    cbar: bool = True,
+    cbar_label: str = None,
+    scaling_factor: float = 1,
 ):
-    """Plot the generation stack with highlighted difficult periods.
+    """Plot the fuel cell utilization for the given network and regions.
 
     Parameters:
     -----------
-    n: PyPSA network.
-    start: pd.Timestamp
-        Start date.
-    end: pd.Timestamp
-        End date.
+    n: pypsa.Network
+        PyPSA network.
+    cmap: mpl.colors.ListedColormap
+        Colormap for the fuel cell utilization.
+    norm: mpl.colors.BoundaryNorm
+        Normalization for the colormap.
+    regions: gpd.GeoDataFrame
+        GeoDataFrame with the regions.
     periods: pd.DataFrame
-        System-defining events.
-    freq: str
-        Resampling frequency.
-    new_index: pd.TimedeltaIndex
-        New index for the data.
-    ax: matplotlib.axes
-        Axes
-    """
+        DataFrame with the system-defining events.
+    fc_flex: pd.DataFrame
+        DataFrame with the fuel cell flexibility.
+    ax: plt.Axes
+        Axes to plot on.
+    projection: ccrs.Projection
+        Projection for the plot.
+    cbar: bool
+        If True, add a colorbar to the plot.
+    cbar_label: str
+        Label for the colorbar.
+    scaling_factor: float
+        Scaling factor for the fuel cell utilization."""
     if ax is None:
-        fig = plt.figure(figsize=(8, 5))
-        ax = fig.add_subplot()
-    # Gather generation, storage, and load data.
-    # NB: Transmission cancels out on the European level.
-    p_gen = n.generators_t.p.groupby(n.generators.carrier, axis=1).sum() / 1e3
-    p_store = n.stores_t.p.groupby(n.stores.carrier, axis=1).sum() / 1e3
-    p_storage = n.storage_units_t.p.groupby(n.storage_units.carrier, axis=1).sum() / 1e3
-    p = pd.concat([p_gen, p_store, p_storage], axis=1)
-    p = p.resample(freq).mean()
-    # Ensure we have no leap days.
-    p = p[~((p.index.month == 2) & (p.index.day == 29))]
-    p_neg = p.clip(upper=0)
-    p = p.clip(lower=0)
-    loads = n.loads_t.p_set.sum(axis=1).resample(freq).mean() / 1e3
-    # Ensure we have no leap days.
-    loads = loads[~((loads.index.month == 2) & (loads.index.day == 29))]
-    # Ensure load shedding has a colour.
-    n.carriers.color["load-shedding"] = "#000000"
-    colors = [n.carriers.color[carrier] for carrier in p.columns]
-    if new_index is not None:
-        # Reindex the dates, as the years are wrong.
-        p.index = new_index
-        p_neg.index = new_index
-        loads.index = new_index
-    # If we specified a start and end date, only plot that period.
-    p_slice = p.loc[start:end]
-    p_neg_slice = p_neg.loc[start:end]
-    loads = loads[start:end]
-    # Plot the generation stack.
-    ax.stackplot(p_slice.index, p_slice.transpose(), colors=colors, labels=p.columns)
-    ax.stackplot(p_neg_slice.index, p_neg_slice.transpose(), colors=colors)
-    # Plot the SDEs.
-    # First the ones we have identified.
-    ymin, ymax = ax.get_ylim()
-    for _, row in periods.iterrows():
-        if (
-            row["start"].tz_localize(None) > start
-            and row["end"].tz_localize(None) < end
-        ):
-            period_start = pd.Timestamp(row["start"].date())
-            period_end = pd.Timestamp(row["end"].date())
-            ax.fill_between(
-                pd.DatetimeIndex(pd.date_range(period_start, period_end, freq="D")),
-                ymin,
-                ymax,
-                color="grey",
-                alpha=0.3,
-                label="Filtered period",
-            )
-    # Load.
-    ax.plot(loads, ls="dashed", color="red", label="load", linewidth=0.5)
-    ax.set_xlim(start, end)
-    if ax is None:
-        ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
-    ax.set_ylabel("GW")
-    plt.tight_layout()
+        fig, ax = plt.subplots(
+            subplot_kw={"projection": projection},
+            figsize=(6 * cm, 6 * cm),
+        )
+    n.plot(ax=ax, bus_sizes=0, line_widths=0, link_widths=0)
+
+    r = regions.set_index("name")
+    r["x"], r["y"] = n.buses.x, n.buses.y
+    r = gpd.geodataframe.GeoDataFrame(r, crs="EPSG:4326")
+    r = r.to_crs(projection.proj4_init)
+
+    df_fc = pd.DataFrame(index=r.index, columns=periods.index).astype(float)
+    for i, period in periods.iterrows():
+        start, end = period["start"], period["end"]
+        df_fc[i] = fc_flex.loc[start:end].mean(axis=0)
+    r["util"] = df_fc.mean(axis=1)
+    r["util"] *= scaling_factor
+    r.plot(
+        ax=ax,
+        column="util",
+        cmap=cmap,
+        norm=norm,
+        alpha=0.6,
+        linewidth=0,
+        zorder=1,
+    )
+    if cbar:
+        cbar = plt.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
+            ax=ax,
+            orientation="horizontal",
+            pad=0.01,
+            aspect=20,
+            shrink=0.9,
+            fraction=0.05,
+        )
+        cbar.set_label(f"{cbar_label}", fontsize=7)
+        cbar.ax.tick_params(labelsize=7)
+
+
 
 
 def plot_optimal_costs(
@@ -1189,7 +1790,7 @@ def plot_optimal_costs(
     ax.yaxis.grid(color="lightgray", linestyle="dotted", which="minor")
 
     if save_fig:
-        plt.savefig(f"../plots/optimal_costs.pdf", bbox_inches="tight")
+        plt.savefig("../plots/optimal_costs.pdf", bbox_inches="tight")
     else:
         plt.show()
 
@@ -1322,6 +1923,81 @@ def plot_period_anomalies(
         plt.show()
 
 
+def plot_prices(
+    n: pypsa.Network,
+    cmap: mpl.colors.ListedColormap,
+    norm: mpl.colors.BoundaryNorm,
+    regions: gpd.GeoDataFrame,
+    periods: pd.DataFrame,
+    nodal_prices: pd.DataFrame,
+    ax: plt.Axes,
+    projection: ccrs.Projection = ccrs.PlateCarree(),
+    cbar: bool = True,
+    cbar_label: str = None,
+):
+    """Plot the nodal prices of the network on a map, with regions coloured according to their average prices during system-defining events.
+
+    Parameters:
+    -----------
+    n: pypsa.Network
+        The PyPSA network.
+    cmap: mpl.colors.ListedColormap
+        Colormap for the regions.
+    norm: mpl.colors.BoundaryNorm
+        Normalization for the colormap.
+    regions: gpd.GeoDataFrame
+        GeoDataFrame containing the regions to plot.
+    periods: pd.DataFrame
+        DataFrame containing the system-defining events.
+    nodal_prices: pd.DataFrame
+        DataFrame containing the nodal prices for each period.
+    ax: plt.Axes
+        Axes to plot on.
+    projection: ccrs.Projection
+        Projection to use for the map.
+    cbar: bool
+        Whether to add a colorbar.
+    cbar_label: str
+        Label for the colorbar.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(
+            subplot_kw={"projection": projection},
+            figsize=(6 * cm, 6 * cm),
+        )
+    n.plot(ax=ax, bus_sizes=0, line_widths=0, link_widths=0)
+
+    r = regions.set_index("name")
+    r["x"], r["y"] = n.buses.x, n.buses.y
+    r = gpd.geodataframe.GeoDataFrame(r, crs="EPSG:4326")
+    r = r.to_crs(projection.proj4_init)
+    event_prices = pd.DataFrame(index=r.index, columns=periods.index).astype(float)
+    for i, period in periods.iterrows():
+        event_prices[i] = nodal_prices.loc[period["start"] : period["end"]].mean(axis=0)
+    r["prices"] = event_prices.mean(axis=1)
+    r.plot(
+        ax=ax,
+        column="prices",
+        cmap=cmap,
+        norm=norm,
+        alpha=0.6,
+        linewidth=0,
+        zorder=1,
+    )
+    if cbar:
+        cbar = plt.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
+            ax=ax,
+            orientation="horizontal",
+            pad=0.01,
+            aspect=20,
+            shrink=0.9,
+            fraction=0.05,
+        )
+        cbar.set_label(f"{cbar_label}", fontsize=7)
+        cbar.ax.tick_params(labelsize=7)
+
+
 def plot_scatter(ax, x_data, y_data, x_label, y_label, title, color="blue"):
     """Plot a scatter plot with correlation coefficient annotated."""
     ax.scatter(x_data, y_data, s=1, color=color)
@@ -1349,7 +2025,154 @@ def plot_segmented_line(ax, x, y, c, cmap, norm, **kwargs):
     return lc
 
 
+def plot_total_costs(
+    n: pypsa.Network,
+    cmap: mpl.colors.ListedColormap,
+    norm: mpl.colors.BoundaryNorm,
+    regions: gpd.GeoDataFrame,
+    periods: pd.DataFrame,
+    nodal_costs: pd.DataFrame,
+    ax: plt.Axes,
+    projection: ccrs.Projection = ccrs.PlateCarree(),
+    cbar: bool = True,
+    cbar_label: str = None,
+):
+    """Plot the total costs of the network on a map, with regions coloured according to their average costs during system-defining events.
+
+    Parameters:
+    -----------
+    n: pypsa.Network
+        The PyPSA network.
+    cmap: mpl.colors.ListedColormap
+        Colormap for the regions.
+    norm: mpl.colors.BoundaryNorm
+        Normalization for the colormap.
+    regions: gpd.GeoDataFrame
+        GeoDataFrame containing the regions to plot.
+    periods: pd.DataFrame
+        DataFrame containing the system-defining events.
+    nodal_costs: pd.DataFrame
+        DataFrame containing the nodal costs for each period.
+    ax: plt.Axes
+        Axes to plot on.
+    projection: ccrs.Projection
+        Projection to use for the map.
+    cbar: bool
+        Whether to add a colorbar.
+    cbar_label: str
+        Label for the colorbar.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(
+            subplot_kw={"projection": projection},
+            figsize=(6 * cm, 6 * cm),
+        )
+    n.plot(ax=ax, bus_sizes=0, line_widths=0, link_widths=0)
+
+    r = regions.set_index("name")
+    r["x"], r["y"] = n.buses.x, n.buses.y
+    r = gpd.geodataframe.GeoDataFrame(r, crs="EPSG:4326")
+    r = r.to_crs(projection.proj4_init)
+
+    event_costs = pd.DataFrame(index=r.index, columns=periods.index).astype(float)
+    for i, period in periods.iterrows():
+        event_costs[i] = nodal_costs.loc[period["start"] : period["end"]].mean(axis=0)
+    r["costs"] = event_costs.mean(axis=1)
+
+    r.plot(
+        ax=ax,
+        column="costs",
+        cmap=cmap,
+        norm=norm,
+        alpha=0.6,
+        linewidth=0,
+        zorder=1,
+    )
+    if cbar:
+        cbar = plt.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
+            ax=ax,
+            orientation="horizontal",
+            pad=0.01,
+            aspect=20,
+            shrink=0.9,
+            fraction=0.05,
+        )
+        cbar.set_label(f"{cbar_label}", fontsize=7)
+        cbar.ax.tick_params(labelsize=7)
+
+
+def ranges_across_years(
+    df: pd.DataFrame, years: list, resample: str = None, clip: bool = False
+):
+    """Create a DataFrame with the ranges of the given DataFrame across the specified years.
+
+    Parameters:
+    -----------
+    df: pd.DataFrame
+        DataFrame with the data to be processed.
+    years: list
+        List of years to consider for the ranges.
+    resample: str, optional
+        Resampling frequency, e.g. '1D' for daily averages.
+    clip: bool, optional
+        If True, clip the values to be non-negative.
+    """
+    df_help = df.copy()
+    df_help.index = range(len(df_help))
+    list_help = [
+        df_help.loc[i * 8760 : (i + 1) * 8760 - 1] for i in range(len(df_help) // 8760)
+    ]
+    for li in list_help:
+        li.index = range(8760)
+    full_df = pd.concat(list_help, axis=1)
+    full_df.index = pd.date_range(
+        f"{years[0]}-07-01", f"{years[0] + 1}-06-30 23:00", freq="h"
+    )
+    if clip:
+        full_df = full_df.clip(lower=0)
+    if resample is not None:
+        full_df = full_df.resample(resample).mean()
+    full_df.columns = years
+    return full_df
+
+
 #### CURRENTLY NOT IN USE:
+def compute_incidence_matrix(periods, sensitivity_periods):
+    """Compute the incidence matrix for the periods and sensitivity periods.
+
+    Parameters:
+    -----------
+    periods: pd.DataFrame
+        DataFrame with the periods.
+    sensitivity_periods: dict
+        Dictionary with the sensitivity periods, where keys are scenario names and values are DataFrames of periods.
+
+    Returns:
+    --------
+    np.ndarray
+        Incidence matrix where rows correspond to periods and columns to sensitivity periods.
+    """
+    matrix = np.zeros((len(periods), len(sensitivity_periods)))
+    for j, scenar in enumerate(sensitivity_periods.keys()):
+        alt_periods = sensitivity_periods[scenar]
+        if len(alt_periods) == 0:
+            matrix[:, j] = 0
+        else:
+            for i, period in periods.iterrows():
+                start = period.start.tz_localize(tz="UTC")
+                end = period.end.tz_localize(tz="UTC")
+                time_slice = pd.date_range(start, end, freq="h")
+                for alt_period in alt_periods.iterrows():
+                    alt_time_slice = pd.date_range(
+                        alt_period[1].start, alt_period[1].end, freq="h"
+                    )
+                    if len(set(time_slice).intersection(set(alt_time_slice))) > 0:
+                        matrix[i, j] = 1
+                        break
+    return matrix
+
+
 def plot_flex_events(
     periods: pd.DataFrame,
     all_flex: pd.DataFrame,
@@ -1485,3 +2308,139 @@ def plot_flex_events(
             plt.savefig(f"{path_str}.pdf", bbox_inches="tight")
     else:
         plt.show()
+
+def plot_incidence_matrix(
+    m, sensitivity_periods, cmap=mpl.colors.ListedColormap(["red", "green"]), ax=None
+):
+    """Plot the incidence matrix of system-defining events and sensitivity scenarios.
+
+    Parameters:
+    -----------
+    m: pd.DataFrame
+        Incidence matrix with system-defining events as rows and sensitivity scenarios as columns.
+    sensitivity_periods: dict
+        Dictionary with sensitivity scenarios, where keys are tuples of (year, month, day) and values are the scenario names.
+    cmap: mpl.colors.ListedColormap
+        Colormap for the matrix.
+    ax: plt.Axes, optional
+        Axes to plot on. If None, a new figure and axes are created.
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+    im = ax.imshow(m, cmap=cmap)
+    ax.set_xlabel("Sensitivity scenarios")
+    ax.set_ylabel("System-defining events")
+    ax.set_xticks(np.arange(len(sensitivity_periods)))
+    ax.set_xticklabels(
+        [
+            f"{scenar[0]}_{scenar[1]}_{scenar[2]}"
+            for scenar in sensitivity_periods.keys()
+        ],
+        rotation=90,
+    )
+    return im
+
+
+def plot_generation_stack(
+    n: pypsa.Network,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    periods: pd.DataFrame,
+    freq: str = "1D",
+    new_index: pd.TimedeltaIndex = None,
+    ax=None,
+):
+    """Plot the generation stack with highlighted difficult periods.
+
+    Parameters:
+    -----------
+    n: PyPSA network.
+    start: pd.Timestamp
+        Start date.
+    end: pd.Timestamp
+        End date.
+    periods: pd.DataFrame
+        System-defining events.
+    freq: str
+        Resampling frequency.
+    new_index: pd.TimedeltaIndex
+        New index for the data.
+    ax: matplotlib.axes
+        Axes
+    """
+    if ax is None:
+        fig = plt.figure(figsize=(8, 5))
+        ax = fig.add_subplot()
+    # Gather generation, storage, and load data.
+    # NB: Transmission cancels out on the European level.
+    p_gen = n.generators_t.p.groupby(n.generators.carrier, axis=1).sum() / 1e3
+    p_store = n.stores_t.p.groupby(n.stores.carrier, axis=1).sum() / 1e3
+    p_storage = n.storage_units_t.p.groupby(n.storage_units.carrier, axis=1).sum() / 1e3
+    p = pd.concat([p_gen, p_store, p_storage], axis=1)
+    p = p.resample(freq).mean()
+    # Ensure we have no leap days.
+    p = p[~((p.index.month == 2) & (p.index.day == 29))]
+    p_neg = p.clip(upper=0)
+    p = p.clip(lower=0)
+    loads = n.loads_t.p_set.sum(axis=1).resample(freq).mean() / 1e3
+    # Ensure we have no leap days.
+    loads = loads[~((loads.index.month == 2) & (loads.index.day == 29))]
+    # Ensure load shedding has a colour.
+    n.carriers.color["load-shedding"] = "#000000"
+    colors = [n.carriers.color[carrier] for carrier in p.columns]
+    if new_index is not None:
+        # Reindex the dates, as the years are wrong.
+        p.index = new_index
+        p_neg.index = new_index
+        loads.index = new_index
+    # If we specified a start and end date, only plot that period.
+    p_slice = p.loc[start:end]
+    p_neg_slice = p_neg.loc[start:end]
+    loads = loads[start:end]
+    # Plot the generation stack.
+    ax.stackplot(p_slice.index, p_slice.transpose(), colors=colors, labels=p.columns)
+    ax.stackplot(p_neg_slice.index, p_neg_slice.transpose(), colors=colors)
+    # Plot the SDEs.
+    # First the ones we have identified.
+    ymin, ymax = ax.get_ylim()
+    for _, row in periods.iterrows():
+        if (
+            row["start"].tz_localize(None) > start
+            and row["end"].tz_localize(None) < end
+        ):
+            period_start = pd.Timestamp(row["start"].date())
+            period_end = pd.Timestamp(row["end"].date())
+            ax.fill_between(
+                pd.DatetimeIndex(pd.date_range(period_start, period_end, freq="D")),
+                ymin,
+                ymax,
+                color="grey",
+                alpha=0.3,
+                label="Filtered period",
+            )
+    # Load.
+    ax.plot(loads, ls="dashed", color="red", label="load", linewidth=0.5)
+    ax.set_xlim(start, end)
+    if ax is None:
+        ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.set_ylabel("GW")
+    plt.tight_layout()
+
+
+def load_sensitivity_periods(config: dict):
+    """Load the system-defining events based on the configuration."""
+    scen_name = config["difficult_periods"]["scen_name"]
+    clusters = config["scenario"]["clusters"]
+    ll = config["scenario"]["ll"]
+    opts = config["scenario"]["opts"]
+    periods_name = f"sde_{scen_name}_{clusters[0]}_elec_l{ll[0]}_{opts[0]}"
+
+    periods = pd.read_csv(
+        f"../results/periods/{periods_name}.csv",
+        index_col=0,
+        parse_dates=["start", "end", "peak_hour"],
+    )
+
+    for col in ["start", "end", "peak_hour"]:
+        periods[col] = periods[col].dt.tz_localize(None)
+    return periods
