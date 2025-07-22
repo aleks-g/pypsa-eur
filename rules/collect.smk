@@ -6,8 +6,8 @@ import yaml
 
 def load_operational_years(file_path):
     with open(file_path, 'r') as file:
-        return list(yaml.safe_load(file).keys())
-
+        data = yaml.safe_load(file)  # Load the YAML data once
+        return list(data.keys())
 
 localrules:
     all,
