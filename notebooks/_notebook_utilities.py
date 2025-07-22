@@ -20,10 +20,11 @@ from matplotlib.patches import Polygon, Patch
 
 import geopandas as gpd
 import cartopy.crs as ccrs
+import seaborn as sns
 
 import pandas as pd
 import numpy as np
-from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter, AutoMinorLocator
 import matplotlib.dates as mdates
 from typing import Optional
 
@@ -194,9 +195,6 @@ def compute_anomalies_periods(
     return anom_df
 
 
-
-
-
 # Get network for a given date. Here, opt_networks[n] is defined over the period n-07-01 to (n+1)-06-30.
 def get_net_year(date):
     """Get the year of the period from the date."""
@@ -280,7 +278,7 @@ def load_periods(config: dict, clusters: str = None, ll: str = None, opts: str =
         Manual input for transmission limits.
     opts: str
         Manual input for options.
-        
+
     Returns:
     --------
     periods: pd.DataFrame
@@ -379,14 +377,14 @@ def optimal_costs(
         Dictionary of pretty names for the technologies.
     storage_units: bool
         If True, storage units are considered, otherwise stores.
-        
+
     Returns:
     --------
     opt_objs: pd.DataFrame
         DataFrame with the optimal costs for the technologies, indexed by year.
     obj_totals: pd.DataFrame
         DataFrame with the total objective values for the optimal networks, indexed by year."""
-    
+
     years = list(opt_networks.keys())
     opt_objs = pd.DataFrame(index=years, columns=techs)
     vres = [
@@ -1708,8 +1706,6 @@ def plot_fc_util(
         cbar.ax.tick_params(labelsize=7)
 
 
-
-
 def plot_optimal_costs(
     opt_networks: dict,
     techs: list = [
@@ -1996,6 +1992,232 @@ def plot_prices(
         )
         cbar.set_label(f"{cbar_label}", fontsize=7)
         cbar.ax.tick_params(labelsize=7)
+
+
+def plot_scatter_quadrants(
+    marked_years, opt_objs, share_unserved, max_unserved, title, colour="#2F3C30"
+):
+    """Plot scatter plots of total costs against (maximal) unserved energy, once for design years and operational years each in a 2x2 grid.
+
+    Parameters:
+    -----------
+    marked_years: list
+        List of years to be highlighted in the scatter plot.
+    opt_objs: dict
+        Total system costs
+    share_unserved: pd.DataFrame
+        Share of unserved energy for each year.
+    max_unserved: pd.DataFrame
+        Maximum unserved load for each year.
+    title: str
+        Title of the figure.
+    colour: str
+        Colour to use for the highlighted years in the scatter plot.
+    """
+    fig, axs = plt.subplots(
+        2, 2, figsize=(18 * cm, 14 * cm), gridspec_kw={"hspace": 0.3}
+    )
+    fig.suptitle(title, fontsize=8)
+    total_costs = opt_objs["total"] / 1e9  # in bn EUR
+
+    # Unserved energy (in percent)
+    share_unserved_reorder = share_unserved.mean(axis="columns")
+    op_share_unserved_reorder = share_unserved.mean(axis="index")
+    share_unserved_reorder.index = total_costs.index
+    op_share_unserved_reorder.index = total_costs.index
+
+    # Max unserved load (in GW)
+    max_unserved_reorder = max_unserved.mean(axis="columns")
+    op_max_unserved_reorder = max_unserved.mean(axis="index")
+    max_unserved_reorder.index = total_costs.index
+    op_max_unserved_reorder.index = total_costs.index
+
+    ax = axs[0, 0]
+    # Scatter plot.
+    ax.scatter(total_costs, share_unserved_reorder, color="#2F3C30", alpha=0.2, s=20)
+
+    # Add correlation.
+    corr = total_costs.corr(share_unserved_reorder)
+    ax.text(
+        0.6,
+        0.95,
+        f"Correlation: {corr:.2f}",
+        transform=ax.transAxes,
+        fontsize=7,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+    )
+    for i, txt in enumerate(total_costs.index):
+        if txt in marked_years:
+            ax.annotate(
+                txt,
+                (total_costs[i] - 0.5, share_unserved_reorder[i]),
+                fontsize=7,
+                ha="right",
+                va="bottom",
+                color="black",
+            )
+    # Scatter plot only those above years with full opacity
+    ax.scatter(
+        total_costs[marked_years],
+        share_unserved_reorder[marked_years],
+        color=colour,
+        alpha=0.9,
+        s=20,
+        zorder=3,
+    )
+
+    # ax.hlines(0.05, color="red", linestyle=":", linewidth=0.5, label="ENTSO-E reliability")
+
+    ax.set_ylabel("Share of expected unserved energy [%]", fontsize=8)
+    ax.set_title("Design year", fontsize=8)
+    ax = axs[1, 0]
+    # Scatter plot.
+    ax.scatter(total_costs, op_share_unserved_reorder, color="#2F3C30", alpha=0.2, s=20)
+
+    # Add correlation.
+    corr = total_costs.corr(op_share_unserved_reorder)
+    ax.text(
+        0,
+        0.95,
+        f"Correlation: {corr:.2f}",
+        transform=ax.transAxes,
+        fontsize=7,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+    )
+    # Annotate some years such as "62/63", "41/42", "19/20", "14/15", and "65/66"
+    for i, txt in enumerate(total_costs.index):
+        if txt in marked_years:
+            ax.annotate(
+                txt,
+                (total_costs[i] - 0.5, op_share_unserved_reorder[i]),
+                fontsize=7,
+                ha="right",
+                va="bottom",
+                color="black",
+            )
+    # Scatter plot only those above years with full opacity
+    ax.scatter(
+        total_costs[marked_years],
+        op_share_unserved_reorder[marked_years],
+        color=colour,
+        alpha=0.9,
+        s=20,
+        zorder=3,
+    )
+
+    ax.set_ylabel("Share of expected unserved energy [%]", fontsize=8)
+    ax.set_title("Stress test: Operational year", fontsize=8)
+    ax = axs[0, 1]
+    # Scatter plot.
+    ax.scatter(total_costs, max_unserved_reorder, color="#2F3C30", alpha=0.2, s=20)
+    # Add correlation.
+    corr = total_costs.corr(max_unserved_reorder)
+    ax.text(
+        0.6,
+        0.95,
+        f"Correlation: {corr:.2f}",
+        transform=ax.transAxes,
+        fontsize=7,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+    )
+    for i, txt in enumerate(total_costs.index):
+        if txt in marked_years:
+            ax.annotate(
+                txt,
+                (total_costs[i] - 0.5, max_unserved_reorder[i]),
+                fontsize=7,
+                ha="right",
+                va="bottom",
+                color="black",
+            )
+    ax.scatter(
+        total_costs[marked_years],
+        max_unserved_reorder[marked_years],
+        color=colour,
+        alpha=0.9,
+        s=20,
+        zorder=3,
+    )
+    ax.set_ylabel("Expected max. unserved load [GW]", fontsize=8)
+    ax.set_title("Design year", fontsize=8)
+    ax = axs[1, 1]
+    # Scatter plot.
+    ax.scatter(total_costs, op_max_unserved_reorder, color="#2F3C30", alpha=0.2, s=20)
+    # Add correlation.
+    corr = total_costs.corr(op_max_unserved_reorder)
+    ax.text(
+        0,
+        0.95,
+        f"Correlation: {corr:.2f}",
+        transform=ax.transAxes,
+        fontsize=7,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+    )
+    for i, txt in enumerate(total_costs.index):
+        if txt in marked_years:
+            ax.annotate(
+                txt,
+                (total_costs[i] - 0.5, op_max_unserved_reorder[i]),
+                fontsize=7,
+                ha="right",
+                va="bottom",
+                color="black",
+            )
+    # Scatter plot only those above years with full opacity
+    ax.scatter(
+        total_costs[marked_years],
+        op_max_unserved_reorder[marked_years],
+        color=colour,
+        alpha=0.9,
+        s=20,
+        zorder=3,
+    )
+    ax.set_ylabel("Expected max. unserved load [GW]", fontsize=8)
+    ax.set_title("Stress test: Operational year", fontsize=8)
+    for ax in axs[:, 0]:
+        ax.yaxis.set_major_locator(MultipleLocator(1))
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%d"))
+        ax.yaxis.set_minor_locator(AutoMinorLocator(4))
+
+    for ax in axs[:, 1]:
+        ax.yaxis.set_major_locator(MultipleLocator(50))
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%d"))
+        ax.yaxis.set_minor_locator(AutoMinorLocator(2))
+
+    for ax in axs.flatten():
+        # Labels
+        ax.set_xlabel("Annual system costs [bn EUR / a]", fontsize=8)
+        # Legend
+        handles, labels = ax.get_legend_handles_labels()
+        sns.despine(ax=ax, left=True, bottom=True)
+        ax.tick_params(axis="y", which="both", length=0, labelsize=7, rotation=0)
+        ax.tick_params(axis="x", which="both", length=0, labelsize=7, rotation=0)
+        # Ticks, grid
+
+        ax.xaxis.set_major_locator(MultipleLocator(10))
+        ax.xaxis.set_major_formatter(FormatStrFormatter("%d"))
+        ax.xaxis.set_minor_locator(AutoMinorLocator(2))
+        ax.xaxis.grid(color="lightgray", linestyle="solid", which="major")
+        ax.xaxis.grid(color="lightgray", linestyle="dotted", which="minor")
+        ax.legend(
+            handles=handles,
+            labels=labels,
+            ncol=4,
+            loc="upper left",
+            fontsize=7,
+            bbox_to_anchor=(0.1, -0.25),
+            borderaxespad=0.0,
+            frameon=False,
+            labelspacing=0.75,
+        )
+        ax.set_xlim(120, 220)
+        ax.yaxis.grid(color="lightgray", linestyle="solid", which="major")
+        ax.yaxis.grid(color="lightgray", linestyle="dotted", which="minor")
+    return fig, axs
 
 
 def plot_scatter(ax, x_data, y_data, x_label, y_label, title, color="blue"):
@@ -2308,6 +2530,7 @@ def plot_flex_events(
             plt.savefig(f"{path_str}.pdf", bbox_inches="tight")
     else:
         plt.show()
+
 
 def plot_incidence_matrix(
     m, sensitivity_periods, cmap=mpl.colors.ListedColormap(["red", "green"]), ax=None
