@@ -21,6 +21,7 @@ snakemake*
 /networks
 /benchmarks
 /logs
+/config/archive
 
 /notebooks/*
 !/notebooks/nb_scripts
