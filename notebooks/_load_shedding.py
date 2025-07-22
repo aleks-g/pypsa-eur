@@ -36,7 +36,7 @@ if __name__ == "__main__":
             else:
                 if process_network:
                     n = pypsa.Network(
-                        f"../results/stressful-weather/weather_year_{design_year}/networks/weather_year_{operational_year}_base_s_90_elec_lc1.25_Co2L.nc"
+                        f"../results/{config_name}/weather_year_{design_year}/networks/weather_year_{operational_year}_base_s_90_elec_lc1.25_Co2L.nc"
                     )
                     load_shedding = n.generators_t.p.filter(
                         like="load", axis="columns"
@@ -44,7 +44,7 @@ if __name__ == "__main__":
                     load_shedding = load_shedding.loc[
                         :, ~load_shedding.columns.str.contains("battery|H2")
                     ]
-                    fold = f"../results/stressful-weather/weather_year_{design_year}/validation/"
+                    fold = f"../results/{config_name}/weather_year_{design_year}/validation/"
                     os.makedirs(fold, exist_ok=True)
                     load_shedding.to_csv(
                         f"{fold}/{operational_year}_base_s_90_elec_lc1.25_Co2L.csv"
@@ -52,7 +52,7 @@ if __name__ == "__main__":
                 else:
                     ls_ts.append(
                         pd.read_csv(
-                            f"../results/stressful-weather/weather_year_{design_year}/validation/weather_year_{operational_year}_base_s_90_elec_lc1.25_Co2L.csv",
+                            f"../results/{config_name}/weather_year_{design_year}/validation/weather_year_{operational_year}_base_s_90_elec_lc1.25_Co2L.csv",
                             index_col=0,
                         )
                     )
@@ -60,10 +60,10 @@ if __name__ == "__main__":
         nodal_shedding = pd.concat(
             ls_ts, axis="index", keys=[y for y in years if y != design_year]
         )
-        system_shedding = nodal_shedding.mean(axis="columns")
+        system_shedding = nodal_shedding.sum(axis="columns")
 
         mean_shedding = sum(ls_ts) / len(ls_ts)
-        mean_system_shedding = mean_shedding.mean(axis="columns")
+        mean_system_shedding = mean_shedding.sum(axis="columns")
 
         # Look at maximal average load shedding per node.
         max_shedding = mean_shedding.max(axis="index")
