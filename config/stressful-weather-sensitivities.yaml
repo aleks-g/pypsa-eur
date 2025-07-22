@@ -30,7 +30,7 @@ run:
   name: "all"
   scenarios:
     enable: true
-    file: config/weather_scenarios_cutouts.yaml
+    file: "config/weather_scenarios_cutouts.yaml"
   disable_progressbar: false
   shared_resources:
     policy: false
@@ -44,30 +44,30 @@ foresight: overnight
 # Wildcard docs in https://pypsa-eur.readthedocs.io/en/latest/wildcards.html
 scenario:
   ll:
-  - c1.0
-  - c1.25 # possibly more?
+  - c1.0 # RUN, also operational runs
+  - c1.25 # default
   # - c1.5
-  - c2
+  - c2 # RUN
   # - c3
   clusters:
   - 90
   opts:
   - 'Co2L0.0'
-  - 'Co2L0.01'
-  - 'Co2L0.05'
-  - 'Co2L0.0-EQ0.7'
+  - 'Co2L0.01' # RUN
+  - 'Co2L0.05' # RUN
+  - 'Co2L0.0-EQ0.7' # RUN
   # - 'Co2L0.0-EQ0.8'
-  - 'Co2L0.0-EQ0.9'
+  - 'Co2L0.0-EQ0.9' # RUN
   # - 'Co2L0.0-EQ0.95'
-  # - 'Co2L0.0-EQ1'
-  - 'Co2L0.01-EQ0.7'
+  # - 'Co2L0.0-EQ1' 
+  - 'Co2L0.01-EQ0.7' # RUN
   # - 'Co2L0.01-EQ0.8'
-  - 'Co2L0.01-EQ0.9'
+  - 'Co2L0.01-EQ0.9' # RUN
   # - 'Co2L0.01-EQ0.95'
   # - 'Co2L0.01-EQ1'
-  - 'Co2L0.05-EQ0.7'
+  - 'Co2L0.05-EQ0.7' # RUN
   # - 'Co2L0.05-EQ0.8'
-  - 'Co2L0.05-EQ0.9'
+  - 'Co2L0.05-EQ0.9' # RUN
   # - 'Co2L0.05-EQ0.95'
   # - 'Co2L0.05-EQ1'
   sector_opts:
