@@ -7,15 +7,12 @@ Generate data for the notebooks in which we analyse and plot the data.
 """
 
 import datetime as dt
-import os
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import pypsa
 import xarray as xr
-import yaml
 
 from _notebook_utilities import *
 
@@ -46,8 +43,8 @@ def average_across_years(df, years):
     list_help = [
         df_help.loc[i * 8760 : (i + 1) * 8760 - 1] for i in range(len(df_help) // 8760)
     ]
-    for l in list_help:
-        l.index = range(8760)
+    for li in list_help:
+        li.index = range(8760)
     avg_df = pd.concat(list_help).groupby(level=0).mean()
     avg_df.index = pd.date_range(
         f"{years[0]}-07-01", f"{years[0] + 1}-06-30 23:00", freq="h"
@@ -1037,17 +1034,17 @@ if __name__ == "__main__":
 
     ## MEANS
     avg_load = pd.read_csv(
-        f"../results/means/load_1941-2020_100bn_12-336h_90_elec_lc1.25_Co2L.csv",
+        "../results/means/load_1941-2020_100bn_12-336h_90_elec_lc1.25_Co2L.csv",
         index_col=0,
         parse_dates=True,
     )
     avg_wind = pd.read_csv(
-        f"../results/means/wind_1941-2020_100bn_12-336h_90_elec_lc1.25_Co2L.csv",
+        "../results/means/wind_1941-2020_100bn_12-336h_90_elec_lc1.25_Co2L.csv",
         index_col=0,
         parse_dates=True,
     )
     avg_solar = pd.read_csv(
-        f"../results/means/solar_1941-2020_100bn_12-336h_90_elec_lc1.25_Co2L.csv",
+        "../results/means/solar_1941-2020_100bn_12-336h_90_elec_lc1.25_Co2L.csv",
         index_col=0,
         parse_dates=True,
     )
@@ -1097,26 +1094,56 @@ if __name__ == "__main__":
 
     ## STORAGE
     # Storage capacities
-    s_caps = pd.DataFrame(index=years, columns=["H2_e", "FC_p", "EL_p"])
+    s_caps = pd.DataFrame(index=years, columns=["H2_e", "FC_p", "EL_p", "batt_e", "batt_c_p", "batt_d_p", "PHS_e", "hydro_e"])
     for year, n in opt_networks.items():
+        # Hydrogen storage
         s_caps.loc[year, "H2_e"] = (
             n.stores.loc[
                 n.stores.loc[n.stores.carrier == "H2"].index, "e_nom_opt"
             ].sum()
             / 1e3
         )  # GWh
+        fc_i = n.links.loc[n.links.carrier == "H2 fuel cell"].index
         s_caps.loc[year, "FC_p"] = (
-            n.links.loc[
-                n.links.loc[n.links.carrier == "H2 fuel cell"].index, "p_nom_opt"
-            ].sum()
+            (n.links.loc[
+                fc_i, "p_nom_opt"
+            ] * n.links.loc[fc_i, "efficiency"]).sum()
             / 1e3
         )  # GW
+        elec_i = n.links.loc[n.links.carrier == "H2 electrolysis"].index
         s_caps.loc[year, "EL_p"] = (
-            n.links.loc[
-                n.links.loc[n.links.carrier == "H2 electrolysis"].index, "p_nom_opt"
-            ].sum()
+            (n.links.loc[
+                elec_i, "p_nom_opt"
+            ] * n.links.loc[elec_i, "efficiency"]).sum()
             / 1e3
         )  # GW
+        # Battery storage
+        s_caps.loc[year, "batt_e"] = (
+            n.stores.loc[
+                n.stores.loc[n.stores.carrier == "battery"].index, "e_nom_opt"
+            ].sum()
+            / 1e3
+        )  # GWh
+        batt_c_i = n.links.loc[n.links.carrier == "battery charger"].index
+        s_caps.loc[year, "batt_c_p"] = (
+            (n.links.loc[
+                batt_c_i, "p_nom_opt"
+            ] * n.links.loc[batt_c_i, "efficiency"]).sum()
+            / 1e3
+        )  # GW
+        batt_d_i = n.links.loc[n.links.carrier == "battery discharger"].index
+        s_caps.loc[year, "batt_d_p"] = (
+            (n.links.loc[
+                batt_d_i, "p_nom_opt"
+            ] * n.links.loc[batt_d_i, "efficiency"]).sum()
+            / 1e3
+        )
+        # Pumped hydro storage
+        phs_i = n.storage_units.loc[n.storage_units.carrier == "PHS"].index
+        s_caps.loc[year, "PHS_e"] = (n.storage_units.loc[phs_i, "p_nom"] * n.storage_units.loc[phs_i, "max_hours"]).sum()/1e3 # GWh
+        # Hydro storage
+        hydro_i = n.storage_units.loc[n.storage_units.carrier == "hydro"].index
+        s_caps.loc[year, "hydro_e"] = (n.storage_units.loc[hydro_i, "p_nom"] * n.storage_units.loc[hydro_i, "max_hours"]).sum()/1e3 # GWh
     s_caps.round(2).to_csv(f"{folder}/s_caps.csv")
 
     # Average storage levels
