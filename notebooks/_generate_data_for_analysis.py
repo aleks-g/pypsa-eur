@@ -589,6 +589,50 @@ def gather_cfs(
     solar_cf = pd.concat(ns_solar_cf, axis=0)
     return wind_cf, solar_cf
 
+def gen_shares(
+        n: pypsa.Network, 
+        start: str = None, 
+        end: str = None
+        ) -> pd.DataFrame:
+    """Calculate generation shares for all technologies in a network.
+    
+    Parameters:
+    -----------
+    n: pypsa.Network
+        PyPSA network.
+    start: str
+        Start of period to be considered.
+    end: str
+        End of period to be considered.
+        
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with generation shares for each technology."""
+
+    gen = n.generators_t.p
+    gen.columns = n.generators.index.map(n.generators.carrier)
+    gen = gen.groupby(axis=1, level=0).sum()
+
+    su = n.storage_units_t.p.clip(lower=0)
+    su.columns = n.storage_units.index.map(n.storage_units.carrier)
+    su = su.groupby(axis=1, level=0).sum()
+
+    links_i = n.links.loc[n.links.carrier.isin(["battery discharger", "H2 fuel cell"])].index
+    link = -n.links_t.p1[links_i]
+    link.columns = links_i.map(n.links.carrier)
+    link = link.groupby(axis=1, level=0).sum()
+
+    all_gen = pd.concat([gen, su, link], axis=1)
+
+    all_gen = all_gen.loc[start:end]
+    all_gen = all_gen.div(all_gen.sum(axis=1), axis=0)
+
+    all_gen["solar"] = all_gen["solar"] + all_gen["solar-hsat"]
+    all_gen = all_gen.drop(columns=["solar-hsat"])
+    all_gen["offwind"] = all_gen["offwind-ac"] + all_gen["offwind-dc"] + all_gen["offwind-float"]
+    all_gen = all_gen.drop(columns=["offwind-ac", "offwind-dc", "offwind-float"])
+    return all_gen
 
 def gen_stack_around_sde(
     opt_networks: Dict[int, pypsa.Network],
@@ -1086,6 +1130,12 @@ if __name__ == "__main__":
     )
     all_prices.round(0).to_csv(f"{folder}/all_prices.csv")
 
+    # ACCUMULATION OF COSTS DURING PERIOD AND WINTER
+    periods_cost = cost_acc(opt_networks, periods=periods)
+    winter_costs = cost_acc(opt_networks, years=years)
+    periods_cost.to_csv(f"{folder}/periods_cost.csv")
+    winter_costs.to_csv(f"{folder}/winter_costs.csv")
+
     # Costs, storage costs and fuel cell costs
     total_costs, total_storage_costs, total_fc_costs = compute_all_duals(opt_networks)
     pd.concat(total_costs).to_csv(f"{folder}/total_costs.csv")
@@ -1371,3 +1421,22 @@ if __name__ == "__main__":
     hydro_costs, phs_costs = compute_hydro_phs_costs(opt_networks)
     hydro_costs.round(0).to_csv(f"{folder}/hydro_costs.csv")
     phs_costs.round(0).to_csv(f"{folder}/phs_costs.csv")
+
+    # GENERATION SHARES
+    winter_shares = pd.DataFrame(index=years, columns = ['biomass', 'nuclear', 'offwind', 'onwind', 'ror', 'solar', 'PHS', 'hydro', 'H2 fuel cell','battery discharger'])
+    periods_shares = pd.DataFrame(index=periods.index, columns = ['biomass', 'nuclear', 'offwind', 'onwind', 'ror', 'solar', 'PHS', 'hydro', 'H2 fuel cell', 'battery discharger'])
+    annual_gen_shares = pd.DataFrame(index=years, columns = ['biomass', 'nuclear', 'offwind', 'onwind', 'ror', 'solar', 'PHS', 'hydro', 'H2 fuel cell','battery discharger'])
+    nov_feb_shares = pd.DataFrame(index=years, columns = ['biomass', 'nuclear', 'offwind', 'onwind', 'ror', 'solar', 'PHS', 'hydro', 'H2 fuel cell','battery discharger'])
+    for year, n in opt_networks.items():
+        winter_shares.loc[year] = gen_shares(n, start=f"{year}-10-01", end=f"{year+1}-03-31").mean(axis=0)
+        annual_gen_shares.loc[year] = gen_shares(n).mean(axis=0)
+        nov_feb_shares.loc[year] = gen_shares(n, start=f"{year}-11-01", end=f"{year+1}-02-28").mean(axis=0)
+    for i, period in periods.iterrows():
+        n = opt_networks[get_net_year(period.start)]
+        periods_shares.loc[i] = gen_shares(n, start=period.start, end=period.end).mean(axis=0)
+    # Export
+    winter_shares.to_csv(f"{folder}/generation_winter_shares.csv")
+    periods_shares.to_csv(f"{folder}/generation_periods_shares.csv")
+    annual_gen_shares.to_csv(f"{folder}/generation_annual_shares.csv")
+    nov_feb_shares.to_csv(f"{folder}/generation_nov_feb_shares.csv")
+

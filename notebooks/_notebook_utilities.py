@@ -194,6 +194,96 @@ def compute_anomalies_periods(
         anom_df[i] = gen_anom
     return anom_df
 
+def cost_acc_netw(
+            n: pypsa.Network,
+            start: str, 
+            end: str,
+            ):
+    """Compute the cost accounting for a given network `n` over the period from `start` to `end`.
+    Parameters:
+    -----------
+    n: PyPSA network
+        The network for which the cost accounting is performed.
+    start: str
+        The start date of the period.
+    end: str
+        The end date of the period.
+    
+    Returns:
+    --------
+    dict
+        A dictionary with the cost accounting values for different components of the network.
+    """
+
+    vals = {}
+    price_nodes = n.buses.loc[n.buses.carrier == "AC"].index
+
+    wind_generators = n.generators.loc[n.generators.carrier.str.contains("wind")].index
+    solar_generators = n.generators.loc[n.generators.carrier.str.contains("solar")].index
+    ror_generators = n.generators.loc[n.generators.carrier == "ror"].index
+    renewable_generators = n.generators.loc[n.generators.carrier.isin(['solar-hsat', 'onwind', 'offwind-float',
+       'solar', 'offwind-ac', 'offwind-dc', 'ror'])].index
+
+    fc_i = n.links.loc[n.links.carrier == "H2 fuel cell"].index
+    batt_i = n.links.loc[n.links.carrier == "battery charger"].index
+
+    links_i = n.links.loc[n.links.carrier == "DC"].index
+
+    # Congestion rent lines
+    vals["lines"] = (((- n.lines_t.mu_upper + n.lines_t.mu_lower)*(n.lines.s_nom_opt)).loc[start:end].sum(axis=0).sum()/((- n.lines_t.mu_upper + n.lines_t.mu_lower)*(n.lines.s_nom_opt)).sum(axis=0).sum()).round(3)
+    # Congestion rent links
+    vals["links"] = ((- n.links_t.mu_upper + n.links_t.mu_lower) * n.links.p_nom_opt).loc[start:end, links_i].sum().sum() / ((- n.links_t.mu_upper + n.links_t.mu_lower) * n.links.p_nom_opt).loc[:, links_i].sum().sum()
+
+    # Costs 
+    vals["costs"] = (n.buses_t.marginal_price[price_nodes] * n.loads_t.p_set).loc[start:end].sum().sum()/(n.buses_t.marginal_price[price_nodes] * n.loads_t.p_set).sum().sum()
+
+    # Renewables
+    for generators, col in zip([wind_generators, solar_generators, ror_generators, renewable_generators], ["wind", "solar", "ror", "renew"]):
+        gen = n.generators_t.p[generators]
+        gen.columns = generators.map(n.generators.bus)
+        vals[col] = (gen * n.buses_t.marginal_price[price_nodes]).loc[start:end].sum().sum()/(gen * n.buses_t.marginal_price[price_nodes]).sum().sum()
+    
+    # Storage
+    for storage, col in zip([fc_i, batt_i], ["fc", "batt"]):
+       vals[col] = (-n.links_t.p1[storage] * n.buses_t.marginal_price[price_nodes].values).loc[start:end].sum().sum()/(-n.links_t.p1[storage] * n.buses_t.marginal_price[price_nodes].values).sum().sum()  
+    return vals
+
+
+
+def cost_acc(opt_networks, years = None, periods = None):
+    """
+    Compute the cost accounting for the optimal networks over the given years or periods.
+
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary of PyPSA networks indexed by year.
+    years: list, optional
+        List of years for which the cost accounting is performed. If None, periods must be provided.
+    periods: pd.DataFrame, optional
+        DataFrame with the periods for which the cost accounting is performed. If None, years must be provided.
+    
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with the cost accounting values for different components of the networks, indexed by year or period.
+
+    """
+    cols = ["costs", "renew", "fc", "batt", "links", "lines", "wind", "solar", "ror"]
+
+    if years is None and periods is None:
+        raise ValueError("Either years or periods must be provided.")
+    elif years is not None:
+        df = pd.DataFrame(index = years, columns = cols).astype(float)
+        for year, n in opt_networks.items():
+            df.loc[year] = cost_acc_netw(n, f"{year}-10-01", f"{year+1}-03-31")
+    else:
+        df = pd.DataFrame(index = periods.index, columns = cols).astype(float)
+        for i, period in periods.iterrows():
+            n = opt_networks[get_net_year(period.start)]
+            df.loc[i] = cost_acc_netw(n, period.start, period.end)
+    return df
+
 
 # Get network for a given date. Here, opt_networks[n] is defined over the period n-07-01 to (n+1)-06-30.
 def get_net_year(date):
