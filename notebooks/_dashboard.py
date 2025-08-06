@@ -757,7 +757,7 @@ if __name__ == "__main__":
     system_flex_p = (nodal_flex_p.unstack().sum(axis="rows") / 1e3).round(1)
     flex_caps = system_flex_p[["battery discharger", "H2 fuel cell"]].unstack(level=0)
     # Ranked years: NOTE that this refers to highest load shedding, not over the annual sum
-    ranked_years = pd.read_csv(f"{folder}/ranked_years.csv", index_col=0)
+    ranked_years = pd.read_csv(f"processing_data/stressful-weather-sensitivities/ranked_years.csv", index_col=0)
     total_costs = {}
     for year in years:
         df = total_costs_df.loc[year]
