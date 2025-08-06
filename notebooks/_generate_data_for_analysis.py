@@ -556,6 +556,31 @@ def anomaly_index_shift(df_origin, avg_df, years):
         df_end.loc[i] = df_origin.loc[i] - avg_df.loc[shifted_index]
     return df_end
 
+def fc_duration_curve(
+    opt_networks: dict,
+) -> pd.DataFrame:
+    """
+    Gather duration curve of fuel cell discharge from networks.
+
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary with optimal networks.
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with fuel cell discharge for each year.
+    """
+    years = list(opt_networks.keys())
+    m = opt_networks[years[0]]
+    fc_i = m.links[m.links.carrier == "H2 fuel cell"].index
+
+    gen_fc_df = pd.DataFrame(index=range(8760))
+    for year, n in opt_networks.items():
+        gen_fc_df[year] = -n.links_t.p1[fc_i].sum(axis=1).sort_values(ascending=True).values
+    gen_fc_df = (gen_fc_df/1e3).round(1)
+    return gen_fc_df
 
 def gather_cfs(
     opt_networks: Dict[int, pypsa.Network],
@@ -588,6 +613,38 @@ def gather_cfs(
     wind_cf = pd.concat(ns_wind_cf, axis=0)
     solar_cf = pd.concat(ns_solar_cf, axis=0)
     return wind_cf, solar_cf
+
+def gather_flex(
+    opt_networks: dict,
+) -> pd.DataFrame:
+    """Gather duration curve of flexible dispatch from networks.
+    
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary with optimal networks.
+    
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with flexible dispatch for each year."""
+    # Get indices of dispatchable technologies.
+    years = list(opt_networks.keys())
+    m = opt_networks[years[0]]
+    firm_gen_i = m.generators[m.generators.carrier.isin(["nuclear", "biomass", "ror", "OCGT", "CCGT"])].index
+    firm_su_i = m.storage_units[m.storage_units.carrier.isin(["PHS", "hydro"])].index
+    firm_s_i = m.links[m.links.carrier.isin(["battery discharger", "H2 fuel cell"])].index
+
+    firm_flex_df = pd.DataFrame(index = range(8760))
+    for year, n in opt_networks.items():
+        df_helper = pd.DataFrame(index = range(8760), columns=["prod"])
+        df_helper["prod"] = n.generators_t.p[firm_gen_i].sum(axis=1).values
+        df_helper["prod"] += n.storage_units_t.p[firm_su_i].sum(axis=1).values
+        df_helper["prod"] -= n.links_t.p1[firm_s_i].sum(axis=1).values
+        firm_flex_df[year] = df_helper.sort_values(by="prod", ascending=False).values
+    firm_flex_df = (firm_flex_df/1e3).round(1)
+    return firm_flex_df
+
 
 def gen_shares(
         n: pypsa.Network, 
@@ -1415,6 +1472,14 @@ if __name__ == "__main__":
     all_system_anomaly.to_csv(f"{folder}/all_system_anomaly.csv")
     all_used_flexibility.to_csv(f"{folder}/all_used_flexibility.csv")
     all_flex_anomaly.to_csv(f"{folder}/all_flex_anomaly.csv")
+
+    # Get duration curve
+    firm_flex_df = gather_flex(opt_networks)
+    firm_flex_df.to_csv(f"{folder}/firm_flex_df.csv")
+
+    # Get duration curve of fuel cells.
+    gen_fc_df = fc_duration_curve(opt_networks)
+    gen_fc_df.to_csv(f"{folder}/gen_fc_df.csv")
 
     ## HYDRO
     # Hydro and PHS costs
