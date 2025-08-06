@@ -863,6 +863,52 @@ def nodal_flex_periods_seasonality(
         nodal_peak_anomaly_flex_u,
     )
 
+def peak_hour_gen(
+    opt_networks: dict,
+    periods: pd.DataFrame,
+    net_load: pd.DataFrame,
+):
+    """
+    Returns the generation during the peak hour of the SDEs.
+    
+    Parameters:
+    -----------
+    opt_networks: dict
+        Dictionary of PyPSA networks.
+    periods: pd.DataFrame
+        System-defining events.
+    net_load: pd.DataFrame
+        Net load dataframe."""
+    carrier_tech = ["biomass", "nuclear", "offwind", "solar", "onwind", "ror"]
+    links_tech = ["H2 fuel cell", "battery discharger"]
+    su_tech = ["PHS", "hydro"]
+
+    peak_gen = pd.DataFrame(columns = carrier_tech + links_tech + su_tech + ["net load"], index = periods.peak_hour).astype(float)
+
+    for period in periods.index:
+        peak_hour = periods.loc[period, "peak_hour"]
+        net_year = get_net_year(peak_hour)
+        n = opt_networks[net_year]
+        
+        for tech in carrier_tech:
+            if tech == "offwind":
+                c_id = n.generators.loc[n.generators.carrier.str.contains("offwind")].index
+            elif tech == "solar":
+                c_id = n.generators.loc[n.generators.carrier.str.contains("solar")].index
+            else:
+                c_id = n.generators.loc[n.generators.carrier == tech].index
+            peak_gen.loc[peak_hour,tech] = n.generators_t.p.loc[peak_hour, c_id].sum()
+        for tech in links_tech:
+            l_id = n.links.loc[n.links.carrier == tech].index
+            peak_gen.loc[peak_hour,tech] = n.links_t.p1.loc[peak_hour, l_id].abs().sum()
+        for tech in su_tech:
+            su_id = n.storage_units.loc[n.storage_units.carrier == tech].index
+            peak_gen.loc[peak_hour,tech] = n.storage_units_t.p.loc[peak_hour, su_id].sum()
+        peak_gen.loc[peak_hour,"net load"] = net_load.loc[peak_hour, "Net load"]
+
+    peak_gen /= 1e3 # in GW
+    peak_gen = peak_gen.round(1)
+    return peak_gen
 
 def solar_capacity_factors(opt_networks, years, winter=False):
     """
@@ -1366,6 +1412,10 @@ if __name__ == "__main__":
     # Generation with two week windows around SDEs.
     gen_stacks = gen_stack_around_sde(opt_networks, periods, window=pd.Timedelta("14D"))
     gen_stacks.round(0).to_csv(f"{folder}/gen_stacks.csv")
+
+    # Peak hour generation during SDEs
+    peak_hour_gen_df = peak_hour_gen(opt_networks, periods, net_load)
+    peak_hour_gen_df.round(1).to_csv(f"{folder}/peak_gen.csv")
 
     ## FLEXIBILITY INDICATORS
     ### SYSTEM
