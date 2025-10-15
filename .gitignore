@@ -80,3 +80,19 @@ dev/*
 CLAUDE.md
 .claude/
 .github/copilot-instructions.md
+
+# SLURM
+slurm_logs/*
+
+# lp files and solutions
+*.lp
+*.sol
+
+# Snakemake helpers
+snakemake_prepare
+snakemake_solve_fat
+snakemake_solve_thin
+
+# other helpers
+cutout_links.sh
+

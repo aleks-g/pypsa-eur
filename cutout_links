@@ -1,0 +1,1 @@
+for y in {1941..2020}; do mkdir -p cutouts/sector_droughts+h2+co2/weather_year_${y}_3H && for f in $EXTREMES/cutouts/europe-*-*-era5.nc; do ln -sfn "$f" cutouts/sector_droughts+h2+co2/weather_year_${y}_3H/; done; done
