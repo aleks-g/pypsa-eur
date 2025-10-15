@@ -462,22 +462,60 @@ def prepare_network(
         # intersect between macroeconomic and surveybased willingness to pay
         # http://journal.frontiersin.org/article/10.3389/fenrg.2015.00055/full
         # TODO: retrieve color and nice name from config
-        n.add("Carrier", "load", color="#dd2e23", nice_name="Load shedding")
-        buses_i = n.buses.index
+        n.add("Carrier", "elec load", color="#dd2e23", nice_name="Load shedding")
+        buses_lv_i = n.buses.query('carrier == "low voltage"').index
+        buses_ac_i = n.buses.query('carrier == "AC"').index
         if not np.isscalar(load_shedding):
             # TODO: do not scale via sign attribute (use Eur/MWh instead of Eur/kWh)
-            load_shedding = 1e2  # Eur/kWh
+            load_shedding = 1e5  # Eur/MWh
+
 
         n.add(
             "Generator",
-            buses_i,
-            " load",
-            bus=buses_i,
-            carrier="load",
-            sign=1e-3,  # Adjust sign to measure p and p_nom in kW instead of MW
-            marginal_cost=load_shedding,  # Eur/kWh
+            buses_lv_i,
+            " load shedding",
+            bus=buses_lv_i,
+            carrier="elec load",
+            # sign=1e-3,  # Adjust sign to measure p and p_nom in kW instead of MW
+            marginal_cost=load_shedding,  # Eur/MWh
             p_nom=1e9,  # kW
         )
+
+        # n.add(
+        #     "Generator",
+        #     buses_ac_i,
+        #     " load shedding",
+        #     bus=buses_ac_i,
+        #     carrier="elec load",
+        #     # sign=1e-3,  # Adjust sign to measure p and p_nom in kW instead of MW
+        #     marginal_cost=load_shedding,  # Eur/MWh
+        #     p_nom=1e6,  # MW
+        # )
+
+        if n.carriers.index.str.contains("heat").any():
+            heat_shedding = 5*load_shedding
+            n.add("Carrier", "heat shed", color="#4F000B", nice_name="Heat shedding")
+            rural_buses_i = n.buses.query('carrier == "rural heat"').index
+            urban_central_buses_i = n.buses.query('carrier == "urban central heat"').index
+            urban_decentral_buses_i = n.buses.query('carrier == "urban decentral heat"').index
+
+            for buses_i, heat_type in zip(
+                [rural_buses_i, urban_central_buses_i, urban_decentral_buses_i],
+                ["rural heat", "urban central heat", "urban decentral heat"],
+            ):
+                n.add(
+                    "Generator",
+                    buses_i,
+                    " shedding",
+                    bus=buses_i,
+                    carrier="heat shed",
+                    # sign=1e-3,  # Adjust sign to measure p and p_nom in kW instead of MW
+                    marginal_cost=heat_shedding,  # Eur/kWh
+                    p_nom=1e6,  # MW
+                )
+
+
+
 
     if solve_opts.get("curtailment_mode"):
         n.add("Carrier", "curtailment", color="#fedfed", nice_name="Curtailment")
@@ -524,9 +562,17 @@ def prepare_network(
 
     if n.stores.carrier.eq("co2 sequestered").any():
         limit_dict = co2_sequestration_potential
-        add_co2_sequestration_limit(
-            n, limit_dict=limit_dict, planning_horizons=planning_horizons
-        )
+        if load_shedding := solve_opts.get("load_shedding"):
+            limit_dict_slacked = {}
+            for year, limit in limit_dict.items():
+                limit_dict_slacked[year] = limit * 1.01
+            add_co2_sequestration_limit(
+                n, limit_dict=limit_dict_slacked, planning_horizons=planning_horizons
+            )
+        else:
+            add_co2_sequestration_limit(
+                n, limit_dict=limit_dict, planning_horizons=planning_horizons
+            )
 
 
 def add_CCL_constraints(

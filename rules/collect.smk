@@ -2,6 +2,19 @@
 #
 # SPDX-License-Identifier: MIT
 
+import yaml
+
+def design_years(file_path):
+    with open(file_path, 'r') as file:
+        data = yaml.safe_load(file)
+    return list(data.keys())
+
+def test_years(file_path):
+    with open(file_path, 'r') as file:
+        data = yaml.safe_load(file)
+    return list(data.keys())
+
+
 
 localrules:
     all,
@@ -10,6 +23,7 @@ localrules:
     prepare_sector_networks,
     solve_elec_networks,
     solve_sector_networks,
+    test_networks,
 
 
 rule cluster_networks:
@@ -66,6 +80,16 @@ rule solve_sector_networks_perfect:
             RESULTS
             + "maps/base_s_{clusters}_{opts}_{sector_opts}-costs-all_{planning_horizons}.pdf",
             **config["scenario"],
+            run=config["run"]["name"],
+        ),
+
+rule test_networks:
+    input:
+        expand(
+            "results/" + config["run"]["prefix"] + "/{design_year}/validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv",
+            operational_year = test_years(config["run"]["stress_tests"]["stress_years"]),
+            **config["scenario"],
+            design_year = design_years(config["run"]["stress_tests"]["design_years"]),
             run=config["run"]["name"],
         ),
 
