@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 from pandas import Timedelta as Delta
 
-from scripts._helpers import configure_logging, get_snapshots, set_scenario_config
+from _helpers import configure_logging, get_snapshots, set_scenario_config
 
 logger = logging.getLogger(__name__)
 
@@ -225,12 +225,24 @@ def manual_adjustment(load, fn_load, countries):
             load, "UA", "2013-10-28 03:00", "2013-10-28 20:00", Delta(weeks=1)
         )
 
+    copy_timeslice(load, "SK", "2020-08-08 09:00", "2020-08-08 15:00", Delta(weeks=1))
+    copy_timeslice(load, "SK", "2016-12-12 14:00", "2016-12-12 23:00", Delta(weeks=-1))
+    copy_timeslice(load, "SK", "2020-02-01 20:00", "2020-02-01 21:00", Delta(hours=-1))
+
+    copy_timeslice(load, "MK", "2018-12-13 09:00", "2018-12-13 10:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2016-06-23 19:00", "2016-06-23 20:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2016-07-26 16:00", "2016-07-26 17:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2016-04-22 19:00", "2016-04-22 20:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2018-09-19 23:00", "2018-09-20 00:00", Delta(weeks=-1))
+    copy_timeslice(load, "MK", "2015-12-27 02:00", "2015-12-27 03:00", Delta(hours=-1))
+    copy_timeslice(load, "MK", "2015-12-27 03:00", "2015-12-27 04:00", Delta(hours=-2))
+
     return load
 
 
 if __name__ == "__main__":
     if "snakemake" not in globals():
-        from scripts._helpers import mock_snakemake
+        from _helpers import mock_snakemake
 
         snakemake = mock_snakemake("build_electricity_demand")
 
@@ -286,8 +298,9 @@ if __name__ == "__main__":
         logger.info("Supplement missing data with synthetic data.")
         fn = snakemake.input.synthetic
         synthetic_load = pd.read_csv(fn, index_col=0, parse_dates=True)
-        # UA, MD, XK, CY, MT do not appear in synthetic load data
-        countries = list(set(countries) - set(["UA", "MD", "XK", "CY", "MT"]))
+        # UA, MD, CY, MT do not appear in synthetic load data
+        synthetic_load.rename(columns = {"KV":"XK"}, inplace=True)
+        countries = list(set(countries) - set(["UA", "MD", "CY", "MT"]))
         synthetic_load = synthetic_load.loc[snapshots, countries]
         load = load.combine_first(synthetic_load)
 
@@ -296,6 +309,7 @@ if __name__ == "__main__":
         "`time_shift_for_large_gaps` or modify the `manual_adjustment` function "
         "for implementing the needed load data modifications."
     )
+
 
     # need to reindex load time series to target year
     if fixed_year:

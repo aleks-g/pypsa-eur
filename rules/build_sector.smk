@@ -1199,7 +1199,7 @@ rule time_aggregation:
         ),
     threads: 1
     resources:
-        mem_mb=5000,
+        mem_mb=15000,
     log:
         logs("time_aggregation_base_s_{clusters}_elec_{opts}_{sector_opts}.log"),
     benchmark:

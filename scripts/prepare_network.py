@@ -222,6 +222,10 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
     p_max_pu_norm = n.generators_t.p_max_pu.max()
     p_max_pu = n.generators_t.p_max_pu / p_max_pu_norm
 
+
+    # Replace p_max_pu that are NaN with 0's (assume no possible generation, this hapepns for BA0 and SI0 offwind-float,)
+    p_max_pu = p_max_pu.fillna(0)
+
     load_norm = n.loads_t.p_set.max()
     load = n.loads_t.p_set / load_norm
 
@@ -229,6 +233,9 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
     inflow = n.storage_units_t.inflow / inflow_norm
 
     raw = pd.concat([p_max_pu, load, inflow], axis=1, sort=False)
+
+
+    
 
     agg = tsam.TimeSeriesAggregation(
         raw,
@@ -244,6 +251,15 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
     weightings = segmented.index.get_level_values("Segment Duration")
     offsets = np.insert(np.cumsum(weightings[:-1]), 0, 0)
     snapshots = [n.snapshots[0] + pd.Timedelta(f"{offset}h") for offset in offsets]
+
+    # Check if there are any leap days in the snapshots. If so, find the index and add 24 hours for all the remaining snapshots.
+    leap_segments = [i for i, x in enumerate(snapshots) if (x.month == 2 and x.day == 29)]
+    if leap_segments:
+        for i in leap_segments:
+            snapshots[i:] = [x + pd.Timedelta("24h") for x in snapshots[i:]]
+        logger.info(
+            f"Leap day found in segments, adding 24 hours to all following segments: {leap_segments}"
+        )
 
     n.set_snapshots(pd.DatetimeIndex(snapshots, name="name"))
     n.snapshot_weightings = pd.Series(

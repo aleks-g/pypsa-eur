@@ -107,12 +107,18 @@ if __name__ == "__main__":
                 .unstack(level=1)
             )
         if snakemake.input.solar_thermal_total:
-            dfs.append(
+            sts = (
                 xr.open_dataset(snakemake.input.solar_thermal_total)
                 .to_dataframe()
+                .rename(
+                    columns={"__xarray_dataarray_variable__": "solar thermal total"}
+                )
                 .unstack(level=1)
             )
+            sts.columns = sts.columns.droplevel(0)
+            dfs.append(sts)
         df = pd.concat(dfs, axis=1)
+        df = df.dropna(how="any")
 
         # Reset columns to flat index
         df = df.T.reset_index(drop=True).T
