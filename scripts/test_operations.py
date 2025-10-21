@@ -27,7 +27,7 @@ def set_weather(
     n: pypsa.Network,
     n_weather: pypsa.Network,
 ) -> None:
-    # TODO: this should work for the electricity only model too, where n.links_t.efficiency is just empty.
+    """Set weather-dependent parameters from n_weather to n."""
     for c, attr in [
         ("Generator", "p_max_pu"),
         ("StorageUnit", "p_max_pu"),
@@ -50,6 +50,40 @@ def set_weather(
             )
         else:
             target.loc[:, :] = source
+
+def set_co2_price(
+    n: pypsa.Network,
+) -> None:
+    """Sets CO2 price based on the dual variable of the CO2 constraint (from the already optimized network n). Removes CO2 limit."""
+    # Follow implementation roughly by Gotske et al, 2024. (https://github.com/ebbekyhl/multi-weather-year-assessment/blob/8aed88728e7a0848de5fd987ff8303761a8f5687/scripts/update_network.py#L150)
+
+    # Extract CO2 price from optimised network
+    co2_price = -n.global_constraints.loc["CO2Limit","mu"] # in EUR/tCO2
+
+    # Remove hard CO2 cap.
+    n.remove("GlobalConstraint", "CO2Limit")
+
+    # Add CO2 price to all emitters - note that net removers will have marginal prices lowered by CO2 price.
+    # All is weighted by efficiency.
+    # bus1: Process emissions, HVC
+    process_i = n.links.query('bus1 == "co2 atmosphere"').index
+    process = n.links.loc[process_i]
+    process_co2_price = co2_price * process.efficiency
+    # bus2: power plants, industry, boilers, but also DAC, biomass to liquid etc.
+    emitters_i = n.links.query('bus2 == "co2 atmosphere"').index
+    emitters = n.links.loc[emitters_i]
+    emitters_co2_price = co2_price * emitters.efficiency2 # note that also negative values for net removers are allowed here
+    # bus3: chp
+    chp_i = n.links.query('bus3 == "co2 atmosphere"').index
+    chp = n.links.loc[chp_i]
+    chp_co2_price = co2_price * chp.efficiency3
+
+    # Update marginal costs
+    n.links.loc[process_i, "marginal_cost"] += process_co2_price
+    n.links.loc[emitters_i, "marginal_cost"] += emitters_co2_price
+    n.links.loc[chp_i, "marginal_cost"] += chp_co2_price
+
+
 
 
 if __name__ == "__main__":
@@ -95,6 +129,9 @@ if __name__ == "__main__":
         logging_frequency = snakemake.config.get("solving", {}).get(
             "mem_logging_frequency", 30
         )
+        if snakemake.config["run"]["stress_tests"].get("mode", "") == "co2-price":
+            print("Setting CO2 price based on previous optimization.")
+            set_co2_price(n)
         with memory_logger(
             filename=getattr(snakemake.log, "memory", None), interval=logging_frequency
         ) as mem:
