@@ -464,10 +464,13 @@ def prepare_network(
         # TODO: retrieve color and nice name from config
         n.add("Carrier", "elec load", color="#dd2e23", nice_name="Load shedding")
         buses_lv_i = n.buses.query('carrier == "low voltage"').index
-        buses_ac_i = n.buses.query('carrier == "AC"').index
-        if not np.isscalar(load_shedding):
-            # TODO: do not scale via sign attribute (use Eur/MWh instead of Eur/kWh)
-            load_shedding = 1e5  # Eur/MWh
+        # buses_ac_i = n.buses.query('carrier == "AC"').index
+        if isinstance(load_shedding, bool):
+            load_shedding = 1e4  # Eur/MWh
+        elif isinstance(load_shedding, float):
+            pass
+        else:
+            raise ValueError("load_shedding must either be boolean or a float.")
 
 
         n.add(
