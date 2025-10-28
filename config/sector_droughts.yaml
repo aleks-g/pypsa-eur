@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz 
 #
 # SPDX-License-Identifier: CC0-1.0
 
@@ -27,10 +27,13 @@ run:
     exclude: []
   shared_cutouts: false
   use_shadow_directory: false
+  fixed_network:
+    enable: true
+    scenario: "weather_year_2013_3H" # ensure that the scenario here is a subset of scenarios["file"]
   stress_tests: 
     enable: true
-    design_years: config/design_years.yaml
-    stress_years: config/stress_tests.yaml
+    design_years: config/design_years.yaml # ensure that the scenarios here are a subset of scenarios["file"]
+    stress_years: config/stress_tests.yaml # ensure that the scenarios here are a subset of scenarios["file"]
     mode: co2-price # co2-limit
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#foresight

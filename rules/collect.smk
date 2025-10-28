@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz & Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 #
 # SPDX-License-Identifier: MIT
 
@@ -13,6 +13,12 @@ def test_years(file_path):
     with open(file_path, 'r') as file:
         data = yaml.safe_load(file)
     return list(data.keys())
+
+def network_year(config):
+    if config["run"]["fixed_network"].get("enable", False):
+        return config["run"]["fixed_network"]["scenario"]
+    else:
+        return None
 
 
 

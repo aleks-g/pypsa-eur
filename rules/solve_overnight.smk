@@ -1,47 +1,139 @@
-# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz & Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 #
 # SPDX-License-Identifier: MIT
 
+if config["run"]["fixed_network"].get("enable", False):
 
-rule solve_sector_network:
-    params:
-        solving=config_provider("solving"),
-        foresight=config_provider("foresight"),
-        co2_sequestration_potential=config_provider(
-            "sector", "co2_sequestration_potential", default=200
-        ),
-        custom_extra_functionality=input_custom_extra_functionality,
-    input:
-        network=resources(
-            "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
-        ),
-    output:
-        network=RESULTS
-        + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
-        config=RESULTS
-        + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.yaml",
-    shadow:
-        shadow_config
-    log:
-        solver=RESULTS
-        + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_solver.log",
-        memory=RESULTS
-        + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_memory.log",
-        python=RESULTS
-        + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
-    threads: solver_threads
-    resources:
-        mem_mb=config_provider("solving", "mem_mb"),
-        runtime=config_provider("solving", "runtime", default="6h"),
-    benchmark:
-        (
-            RESULTS
-            + "benchmarks/solve_sector_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
-        )
-    conda:
-        "../envs/environment.yaml"
-    script:
-        "../scripts/solve_network.py"
+    def fixed_network_year(wildcards):
+        scenario_name = config["run"]["fixed_network"]["scenario"]
+        return "resources/" + config["run"]["prefix"] + "/" + scenario_name + "/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
+
+
+    # For fixing different networks
+    rule solve_first_network:
+        params:
+            solving=config_provider("solving"),
+            foresight=config_provider("foresight"),
+            co2_sequestration_potential=config_provider(
+                "sector", "co2_sequestration_potential", default=200
+            ),
+            custom_extra_functionality=input_custom_extra_functionality,
+        input:
+            network=fixed_network_year,
+        output:
+            network=RESULTS
+            + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net.nc",
+            config=RESULTS
+            + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}net.yaml",
+        shadow:
+            shadow_config
+        log:
+            solver=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_solver.log",
+            memory=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_memory.log",
+            python=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_python.log",
+        threads: solver_threads
+        resources:
+            mem_mb=config_provider("solving", "mem_mb"),
+            runtime=config_provider("solving", "runtime", default="6h"),
+        benchmark:
+            (
+                RESULTS
+                + "benchmarks/solve_sector_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net"
+            )
+        conda:
+            "../envs/environment.yaml"
+        script:
+            "../scripts/solve_network.py"
+
+    # Run on a fixed network
+    rule solve_second_network:
+        params:
+            solving=config_provider("solving"),
+            foresight=config_provider("foresight"),
+            co2_sequestration_potential=config_provider(
+                "sector", "co2_sequestration_potential", default=200
+            ),
+            custom_extra_functionality=input_custom_extra_functionality,
+        input:
+            network=resources(
+                "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
+            ),
+            fixed_network = RESULTS
+            + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net.nc",
+        output:
+            network=RESULTS
+            + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+            config=RESULTS
+            + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.yaml",
+        shadow:
+            shadow_config
+        log:
+            solver=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_solver.log",
+            memory=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_memory.log",
+            python=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+        threads: solver_threads
+        resources:
+            mem_mb=config_provider("solving", "mem_mb"),
+            runtime=config_provider("solving", "runtime", default="6h"),
+        benchmark:
+            (
+                RESULTS
+                + "benchmarks/solve_second_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+            )
+        conda:
+            "../envs/environment.yaml"
+        script:
+            "../scripts/solve_second_network.py"
+    
+else:
+    rule solve_sector_network:
+        params:
+            solving=config_provider("solving"),
+            foresight=config_provider("foresight"),
+            co2_sequestration_potential=config_provider(
+                "sector", "co2_sequestration_potential", default=200
+            ),
+            custom_extra_functionality=input_custom_extra_functionality,
+        input:
+            network=resources(
+                "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
+            ),
+        output:
+            network=RESULTS
+            + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+            config=RESULTS
+            + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.yaml",
+        shadow:
+            shadow_config
+        log:
+            solver=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_solver.log",
+            memory=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_memory.log",
+            python=RESULTS
+            + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+        threads: solver_threads
+        resources:
+            mem_mb=config_provider("solving", "mem_mb"),
+            runtime=config_provider("solving", "runtime", default="6h"),
+        benchmark:
+            (
+                RESULTS
+                + "benchmarks/solve_sector_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+            )
+        conda:
+            "../envs/environment.yaml"
+        script:
+            "../scripts/solve_network.py"
+
+
+
 
 rule test_operations:
     params:
