@@ -111,6 +111,21 @@ near-opt:
     relative: false
     value: 3e10 # 30 bn EUR
   cache_dir: "mga-cache"
+  validation:
+    # MGA validation: test MGA capacity solutions with different operational weather years
+    # Options:
+    #   "all" - Test all MGA directions found in cache_dir (default)
+    #   "path/to/subset.csv" - Test only specific directions listed in CSV file
+    #
+    # To create a subset CSV, extract dir_hash values from the coords cache file:
+    # Example:
+    #   import pandas as pd
+    #   coords = pd.read_csv("mga-cache/coords_abc123.csv")
+    #   # Select specific directions (e.g., first 5)
+    #   subset = coords[["dir_hash"]].head(5)
+    #   subset.to_csv("mga-cache/test_subset.csv", index=False)
+    # Then set: test_directions: "mga-cache/test_subset.csv"
+    test_directions: "all"
   # cache_val:
   #   capacities: false
   #   net_load: false
