@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 import yaml
+import pandas as pd
+from pathlib import Path
 
 def design_years(file_path):
     with open(file_path, 'r') as file:
@@ -21,6 +23,64 @@ def network_year(config):
         return None
 
 
+def get_mga_directions(near_opt_file):
+    """
+    Extract MGA direction hashes from a near_opt_solutions CSV file.
+
+    Parameters
+    ----------
+    near_opt_file : str or Path
+        Path to near_opt_solutions CSV file
+
+    Returns
+    -------
+    list
+        List of dir_hash values
+    """
+    file_path = Path(near_opt_file)
+    if not file_path.exists():
+        return []
+
+    try:
+        df = pd.read_csv(file_path)
+        if 'dir_hash' in df.columns:
+            return df['dir_hash'].tolist()
+        else:
+            return []
+    except Exception as e:
+        print(f"Warning: Could not read MGA directions from {near_opt_file}: {e}")
+        return []
+
+
+def get_network_hash_from_cache(cache_dir):
+    """
+    Extract network hash from MGA cache directory.
+
+    Looks for cache files matching pattern: mga_cache_{network_hash}.csv
+
+    Parameters
+    ----------
+    cache_dir : str or Path
+        Path to cache directory
+
+    Returns
+    -------
+    list
+        List of network_hash values
+    """
+    cache_path = Path(cache_dir)
+    if not cache_path.exists():
+        return []
+
+    network_hashes = []
+    for cache_file in cache_path.glob('mga_cache_*.csv'):
+        # Extract hash from filename: mga_cache_{hash}.csv
+        hash_value = cache_file.stem.replace('mga_cache_', '')
+        network_hashes.append(hash_value)
+
+    return network_hashes
+
+
 
 localrules:
     all,
@@ -30,6 +90,8 @@ localrules:
     solve_elec_networks,
     solve_sector_networks,
     test_networks,
+    compute_mga_solutions,
+    validate_mga_solutions,
 
 
 rule cluster_networks:
@@ -98,6 +160,33 @@ rule test_networks:
             design_year = design_years(config["run"]["stress_tests"]["design_years"]),
             run=config["run"]["name"],
         ),
+
+
+rule compute_mga_solutions:
+    """Compute all near-optimal (MGA) solutions for specified design years."""
+    input:
+        lambda w: expand(
+            "results/" + config["run"]["prefix"] + "/{design_year}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+            design_year=design_years(config["run"]["stress_tests"]["design_years"]),
+            **config["scenario"],
+        ) if config.get("near-opt", {}).get("enable", False) else [],
+
+
+rule validate_mga_solutions:
+    """Validate all MGA capacity solutions with different operational weather years."""
+    input:
+        lambda w: [
+            f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv"
+            for design_year in design_years(config["run"]["stress_tests"]["design_years"])
+            for clusters in config["scenario"]["clusters"]
+            for opts in config["scenario"]["opts"]
+            for sector_opts in config["scenario"]["sector_opts"]
+            for planning_horizons in config["scenario"]["planning_horizons"]
+            for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
+            for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv"]
+            for dir_hash in get_mga_directions(near_opt_file)
+            for network_hash in get_network_hash_from_cache(config.get("near-opt", {}).get("cache_dir", "mga-cache"))
+        ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
 
 
 rule plot_balance_maps:

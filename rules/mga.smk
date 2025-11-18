@@ -11,38 +11,29 @@ rule compute_near_opt:
             "sector", "co2_sequestration_potential", default=200
         ),
         custom_extra_functionality=input_custom_extra_functionality,
-        approx=config_provider("near-opt", "approx"),
-        projection=config_provider("near-opt", "projection"),
-        slack=config_provider("near-opt", "slack"),
-        cache_dir=RESULTS + "mga_cache/",
-        cache_val=config_provider("near-opt", "cache_val", default=None),
     input:
-        network=RESULTS + "networks/base_s_{clusters}_elec_{opts}.nc",
+        network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
     output:
-        near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_elec_{opts}_{network_hash}.csv",
+        near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
     log:
-        solver=normpath(
-            RESULTS + "logs/mga/compute_near_opt/base_s_{clusters}_elec_{opts}_{network_hash}_solver.log"
-        ),
-        python=RESULTS + "logs/mga/compute_near_opt/base_s_{clusters}_elec_{opts}_{network_hash}_python.log",
+        python=RESULTS + "logs/mga/compute_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
     benchmark:
-        (RESULTS + "benchmarks/mga/compute_near_opt/base_s_{clusters}_elec_{opts}_{network_hash}")
-    threads: lambda wildcards: solver_threads(wildcards) * config_provider("near-opt", "approx", "max_parallel")(wildcards)
+        RESULTS + "benchmarks/mga/compute_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+    threads: lambda wildcards: config_provider("near-opt", "approx", "max_parallel")(wildcards)
     resources:
-        mem_mb=lambda wildcards: memory(wildcards) * config_provider("near-opt", "approx", "max_parallel")(wildcards),
+        mem_mb=memory,
         runtime=lambda wildcards: (
-            config_provider("solving", "runtime", default="6h")(wildcards)
-            * (
-                config_provider("near-opt", "iterations")(wildcards) // config_provider("near-opt", "approx", "max_parallel")(wildcards)
-                + (2 * len(config_provider("near-opt", "projection")(wildcards)) if config_provider("near-opt", "minmax")(wildcards) else 0)
-            )
+            lambda rt: int(rt[:-1]) * 60 if isinstance(rt, str) and rt.endswith('h') else int(rt)
+        )(config_provider("solving", "runtime", default=360)(wildcards)) * (
+            config_provider("near-opt", "approx", "iterations")(wildcards)
+            + (2 * len(config_provider("near-opt", "projection")(wildcards)) if config_provider("near-opt", "approx", "minmax")(wildcards) else 0)
         ),
     shadow:
         shadow_config
     conda:
         "../envs/environment.yaml"
     script:
-        "../scripts/mga/compute_near_opt.py"
+        "../scripts/compute_near_opt.py"
 
 
 rule validation_mga:
@@ -65,6 +56,8 @@ rule validation_mga:
             "/{operational_year}/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
         mga_capacities=lambda w: config_provider("near-opt", "cache_dir")(w) +
             f"/caps_{w.network_hash}_{w.dir_hash}.csv",
+        near_opt_solutions="results/" + config["run"]["prefix"] +
+            "/{design_year}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
     output:
         load_shedding="results/" + config["run"]["prefix"] +
             "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv",

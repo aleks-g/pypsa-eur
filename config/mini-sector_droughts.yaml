@@ -38,6 +38,7 @@ run:
 
 
 near-opt:
+  enable: true
   approx:
     minmax: true
     iterations: 5 # does not include minmax runs
