@@ -97,7 +97,7 @@ rule validation_mga:
         network=RESULTS
         + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
         weather_network="resources/" + config["run"]["prefix"] + "/{operational_year}/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
-        mga_capacities=config_provider("near-opt", "cache_dir") + "/caps_{network_hash}_{dir_hash}.csv",
+        mga_capacities=lambda w: config_provider("near-opt", "cache_dir")(w) + f"/caps_{w.network_hash}_{w.dir_hash}.csv",
     output:
         load_shedding=RESULTS + "validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv",
         heat_shedding=RESULTS + "validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_heat_shedding.csv",
