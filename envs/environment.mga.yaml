@@ -67,7 +67,7 @@ dependencies:
 - pylint
 
 - pip:
-  - gurobipy
+  - gurobipy=12
   - highspy
   - tsam>=2.3.1
   - entsoe-py

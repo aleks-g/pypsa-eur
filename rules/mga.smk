@@ -27,14 +27,14 @@ rule compute_near_opt:
         python=RESULTS + "logs/mga/compute_near_opt/base_s_{clusters}_elec_{opts}_{network_hash}_python.log",
     benchmark:
         (RESULTS + "benchmarks/mga/compute_near_opt/base_s_{clusters}_elec_{opts}_{network_hash}")
-    threads: solver_threads * config_provider("near-opt", "approx", "max_parallel")
+    threads: lambda wildcards: solver_threads(wildcards) * config_provider("near-opt", "approx", "max_parallel")(wildcards)
     resources:
-        mem_mb=lambda wildcards: memory * config_provider("near-opt", "approx", "max_parallel"),
+        mem_mb=lambda wildcards: memory(wildcards) * config_provider("near-opt", "approx", "max_parallel")(wildcards),
         runtime=lambda wildcards: (
-            config_provider("solving", "runtime", default="6h")
+            config_provider("solving", "runtime", default="6h")(wildcards)
             * (
-                config_provider("near-opt", "iterations") // config_provider("near-opt", "approx", "max_parallel")
-                + (2 * len(config_provider("near-opt", "projection")) if config_provider("near-opt", "minmax") else 0)
+                config_provider("near-opt", "iterations")(wildcards) // config_provider("near-opt", "approx", "max_parallel")(wildcards)
+                + (2 * len(config_provider("near-opt", "projection")(wildcards)) if config_provider("near-opt", "minmax")(wildcards) else 0)
             )
         ),
     shadow:
