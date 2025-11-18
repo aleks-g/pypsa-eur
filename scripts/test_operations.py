@@ -84,6 +84,27 @@ def set_co2_price(
     n.links.loc[chp_i, "marginal_cost"] += chp_co2_price
 
 
+def extract_shedding_metrics(n: pypsa.Network) -> tuple:
+    """
+    Extract load and heat shedding time series from solved network.
+
+    Returns
+    -------
+    load_shedding : pd.DataFrame
+        Load shedding time series (excluding battery and H2)
+    heat_shedding : pd.DataFrame
+        Heat shedding time series
+    """
+    # Load shedding
+    load_shedding = n.generators_t.p.filter(like="load shedding", axis="columns")
+    load_shedding = load_shedding.loc[
+        :, ~load_shedding.columns.str.contains("battery|H2")
+    ].round(0)
+
+    # Heat shedding
+    heat_shedding = n.generators_t.p.filter(like="heat shedding", axis="columns")
+
+    return load_shedding, heat_shedding
 
 
 if __name__ == "__main__":
@@ -148,18 +169,10 @@ if __name__ == "__main__":
         n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
         n.export_to_netcdf(snakemake.output.network)
 
-        # Save the load shedding in a dataframe.
-        load_shedding = n.generators_t.p.filter(like="load shedding", axis="columns")
+        # Extract shedding metrics
+        load_shedding, heat_shedding = extract_shedding_metrics(n)
 
-        # Remove "battery load" and "H2 load".
-        load_shedding = load_shedding.loc[
-            :, ~load_shedding.columns.str.contains("battery|H2")
-        ].round(0)
-
-        # Save heat shedding in a dataframe.
-        heat_shedding = n.generators_t.p.filter(like="heat shedding", axis="columns")
-
-        # Export the results.
+        # Export the results
         load_shedding.round(3).to_csv(snakemake.output.load_shedding)
         heat_shedding.round(3).to_csv(snakemake.output.heat_shedding)
     except Exception as e:
