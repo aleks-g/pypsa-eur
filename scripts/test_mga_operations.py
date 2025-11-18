@@ -146,7 +146,7 @@ if __name__ == "__main__":
             solve_network(
                 n,
                 config=snakemake.config,
-                params=snakemake.params.solving,
+                params=snakemake.params,
                 solving=snakemake.params.solving,
                 log_fn=snakemake.log.solver,
             )
