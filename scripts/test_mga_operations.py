@@ -111,6 +111,13 @@ if __name__ == "__main__":
     # Load and apply MGA capacities
     logger.info(f"Loading MGA capacities from {snakemake.input.mga_capacities}")
     mga_capacities = load_mga_capacities(snakemake.input.mga_capacities)
+
+    # Add small operational buffer to avoid numerical infeasibilities
+    # when operating with different weather patterns
+    buffer = 0.001  # 0.1% buffer
+    logger.info(f"Adding {buffer*100:.1f}% operational buffer to all MGA capacities")
+    mga_capacities['value'] *= (1 + buffer)
+
     apply_mga_capacities(n, mga_capacities)
     logger.info(f"Applied MGA capacities for direction {snakemake.wildcards.dir_hash}")
 
