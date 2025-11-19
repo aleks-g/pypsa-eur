@@ -19,6 +19,7 @@ from _helpers import (
     set_scenario_config,
     update_config_from_wildcards,
 )
+from mga_helpers import export_mga_capacities
 from solve_second_network import fix_networks
 from pypsa.optimization.mga import hash_direction
 
@@ -353,6 +354,7 @@ if __name__ == "__main__":
         directions=directions_df,
         dimensions=dimensions,
         cache_dir=cache_dir,
+        mga_extra_functionality=export_mga_capacities,
         snapshots=None,
         multi_investment_periods=False,
         slack=slack,

@@ -55,7 +55,7 @@ rule validation_mga:
         weather_network="resources/" + config["run"]["prefix"] +
             "/{operational_year}/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
         mga_capacities=lambda w: config_provider("near-opt", "cache_dir")(w) +
-            f"/caps_{w.network_hash}_{w.dir_hash}.csv",
+            f"/caps/caps_{w.network_hash}_{w.dir_hash}.csv",
         near_opt_solutions="results/" + config["run"]["prefix"] +
             "/{design_year}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
     output:
