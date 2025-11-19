@@ -231,16 +231,16 @@ rule validate_mga_solutions:
     """Validate all MGA capacity solutions with different operational weather years."""
     input:
         lambda w: [
-            f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv"
+            f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}_load_shedding.csv"
+            # Static loops from config
             for design_year in design_years(config["run"]["stress_tests"]["design_years"])
-            for clusters in config["scenario"]["clusters"]
-            for opts in config["scenario"]["opts"]
-            for sector_opts in config["scenario"]["sector_opts"]
-            for planning_horizons in config["scenario"]["planning_horizons"]
             for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
-            for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv"]
-            for network_hash in ([get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache"))] if get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache")) else [])
+            for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
+            # Dynamic lookups from files
+            for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/{scenario}.csv"]
+            for network_hash in [get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache")) or ""]
             for dir_hash in get_mga_directions(near_opt_file)
+            if network_hash  # Skip if network_hash lookup failed
         ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
 
 
