@@ -81,6 +81,61 @@ def get_network_hash_from_cache(cache_dir):
     return network_hashes
 
 
+def get_network_hash_for_near_opt(near_opt_file, cache_dir):
+    """
+    Get the specific network hash for a given near_opt CSV file.
+
+    Reads the near_opt file and finds matching caps files in the cache
+    to extract the network_hash.
+
+    Parameters
+    ----------
+    near_opt_file : str or Path
+        Path to near_opt_solutions CSV file
+    cache_dir : str or Path
+        Path to cache directory
+
+    Returns
+    -------
+    str or None
+        Network hash for this near_opt file, or None if not found
+    """
+    file_path = Path(near_opt_file)
+    if not file_path.exists():
+        return None
+
+    cache_path = Path(cache_dir)
+    if not cache_path.exists():
+        return None
+
+    try:
+        # Read first direction hash from near_opt file
+        df = pd.read_csv(file_path)
+        if 'dir_hash' not in df.columns or len(df) == 0:
+            return None
+
+        first_dir_hash = df['dir_hash'].iloc[0]
+
+        # Find caps file matching this direction
+        caps_dir = cache_path / 'caps'
+        if not caps_dir.exists():
+            return None
+
+        # Look for caps file: caps_{network_hash}_{dir_hash}.csv
+        matching_caps = list(caps_dir.glob(f'caps_*_{first_dir_hash}.csv'))
+        if matching_caps:
+            # Extract network_hash from filename
+            filename = matching_caps[0].stem  # e.g., 'caps_abc123_def456'
+            # Remove 'caps_' prefix and '_{dir_hash}' suffix
+            network_hash = filename.replace('caps_', '').replace(f'_{first_dir_hash}', '')
+            return network_hash
+
+        return None
+    except Exception as e:
+        print(f"Warning: Could not get network hash for {near_opt_file}: {e}")
+        return None
+
+
 
 localrules:
     all,
@@ -184,8 +239,8 @@ rule validate_mga_solutions:
             for planning_horizons in config["scenario"]["planning_horizons"]
             for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
             for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv"]
+            for network_hash in ([get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache"))] if get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache")) else [])
             for dir_hash in get_mga_directions(near_opt_file)
-            for network_hash in get_network_hash_from_cache(config.get("near-opt", {}).get("cache_dir", "mga-cache"))
         ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
 
 
