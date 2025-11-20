@@ -18,7 +18,7 @@ from _helpers import (
     update_config_from_wildcards,
 )
 from solve_network import prepare_network, solve_network
-from scripts._benchmark import memory_logger
+from _benchmark import memory_logger
 
 logger = logging.getLogger(__name__)
 

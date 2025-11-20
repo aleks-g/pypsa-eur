@@ -343,7 +343,7 @@ if __name__ == "__main__":
 
     # Get solver configuration
     solver_config = snakemake.config.get("solving", {})
-    solver_name = solver_config.get("solver", {}).get("name", "highs")
+    solver_name = solver_config.get("solver", {}).get("name", "gurobi")
     solver_options = solver_config.get("solver_options", {}).get(
         solver_config.get("solver", {}).get("options", "default"), {}
     )

@@ -20,7 +20,7 @@ from _helpers import (
     update_config_from_wildcards,
 )
 from solve_network import prepare_network, solve_network
-from scripts._benchmark import memory_logger
+from _benchmark import memory_logger
 from test_operations import set_weather, set_co2_price, extract_shedding_metrics
 
 logger = logging.getLogger(__name__)
