@@ -1157,6 +1157,7 @@ def wind_dist(
 
 if __name__ == "__main__":
     # Standard set-up, note the faulty CO2 limit naming (as no CO2-emitting technologies were included)
+    # for sensitivity runs need to run "stressful-weather-sensitivities" and "base_s_90_elec_lc1.0_Co2L0.0" (with correct naming)
     config_name = "stressful-weather"
     config_str = "base_s_90_elec_lc1.25_Co2L"
 
