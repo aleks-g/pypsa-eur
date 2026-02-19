@@ -96,3 +96,5 @@ snakemake_solve_thin
 # other helpers
 cutout_links.sh
 
+mga_cache/
+

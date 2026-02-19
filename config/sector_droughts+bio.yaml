@@ -1,7 +1,6 @@
-# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz 
 #
 # SPDX-License-Identifier: CC0-1.0
-
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#top-level-configuration
 version: v2025.07.0
 tutorial: false
@@ -27,11 +26,110 @@ run:
     exclude: []
   shared_cutouts: false
   use_shadow_directory: false
+  fixed_network:
+    enable: true
+    scenario: "weather_year_2013_3H" # ensure that the scenario here is a subset of scenarios["file"]
   stress_tests: 
     enable: true
-    design_years: config/design_years.yaml
-    stress_years: config/stress_tests.yaml
+    design_years: config/design_years.yaml # ensure that the scenarios here are a subset of scenarios["file"]
+    stress_years: config/stress_tests.yaml # ensure that the scenarios here are a subset of scenarios["file"]
+    mode: co2-price # co2-limit
 
+near-opt:
+  enable: true
+  approx:
+    minmax: true
+    iterations: 10 # does not include minmax runs
+    directions: "random-uniform" # "halton"
+    seed: 123 # possibly None
+    max_parallel: 1
+  projection:
+    renewables:
+      - {carrier: solar, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: solar-hsat, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: solar rooftop, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: onwind, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: offwind-ac, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: offwind-dc, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: offwind-float, component: Generator, attribute: p_nom, weight: capital_cost}
+    storage:
+      - {carrier: battery, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: battery charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: home battery, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: home battery charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: home battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: H2 Store, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: H2 Electrolysis, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: methanol, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: methanolisation, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: ammonia store, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: Haber-Bosch, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: gas, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: oil, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: EV battery, component: Store, attribute: e_nom, weight: capital_cost}
+    heating:
+      - {carrier: urban central air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central resistive heater, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central gas boiler, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral resistive heater, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral gas boiler, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral biomass boiler, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural ground heat pump, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural resistive heater, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural gas boiler, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural biomass boiler, component: Link, attribute: p_nom, weight: capital_cost}
+    tes:
+      - {carrier: urban central water tanks, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: urban central water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central water pits, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: urban central water pits charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central water pits discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral water tanks, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: urban decentral water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural water tanks, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: rural water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
+    backup:
+      - {carrier: OCGT, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: CCGT, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: H2 Fuel Cell, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: H2 turbine, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central gas CHP, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central gas CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central solid biomass CHP, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central solid biomass CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: OCGT methanol, component: Link, attribute: p_nom, weight: capital_cost}
+    nuclear:
+      - {carrier: nuclear, component: Generator, attribute: p_nom, weight: capital_cost}
+  slack:
+    relative: false
+    value: 3e10 # 10 bn EUR
+  cache_dir: "mga-cache"
+  validation:
+    enable: true
+    # MGA validation: test MGA capacity solutions with different operational weather years
+    # Options:
+    #   "all" - Test all MGA directions found in cache_dir (default)
+    #   "path/to/subset.csv" - Test only specific directions listed in CSV file
+    #
+    # To create a subset CSV, extract dir_hash values from the coords cache file:
+    # Example:
+    #   import pandas as pd
+    #   coords = pd.read_csv("mga-cache/coords_abc123.csv")
+    #   # Select specific directions (e.g., first 5)
+    #   subset = coords[["dir_hash"]].head(5)
+    #   subset.to_csv("mga-cache/test_subset.csv", index=False)
+    # Then set: test_directions: "mga-cache/test_subset.csv"
+    test_directions: "all"
+  # cache_val:
+  #   capacities: false
+  #   net_load: false
+    
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#foresight
 foresight: overnight
 
@@ -979,7 +1077,7 @@ clustering:
       ramp_limit_down: max
   temporal:
     resolution_elec: false
-    resolution_sector: 1500seg
+    resolution_sector: 3H
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#adjustments
 adjustments:

@@ -41,35 +41,35 @@ near-opt:
   enable: true
   approx:
     minmax: true
-    iterations: 5 # does not include minmax runs
+    iterations: 1000 # does not include minmax runs
     directions: "random-uniform" # "halton"
     seed: 123 # possibly None
-    max_parallel: 2
+    max_parallel: 10
   projection:
     renewables:
       - {carrier: solar, component: Generator, attribute: p_nom, weight: capital_cost}
       - {carrier: solar-hsat, component: Generator, attribute: p_nom, weight: capital_cost}
-      - {carrier: solar-rooftop, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: solar rooftop, component: Generator, attribute: p_nom, weight: capital_cost}
       - {carrier: onwind, component: Generator, attribute: p_nom, weight: capital_cost}
       - {carrier: offwind-ac, component: Generator, attribute: p_nom, weight: capital_cost}
       - {carrier: offwind-dc, component: Generator, attribute: p_nom, weight: capital_cost}
       - {carrier: offwind-float, component: Generator, attribute: p_nom, weight: capital_cost}
     storage:
-      # - {carrier: battery, component: Store, attribute: e_nom, weight: capital_cost}biog
-      # - {carrier: battery charger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: home battery, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: home battery charger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: home battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: H2 Store, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: H2 Electrolysis, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: methanol, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: methanolisation, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: ammonia store, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: Haber-Bosch, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: gas, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: oil, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: EV battery, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: battery, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: battery charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: home battery, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: home battery charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: home battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: H2 Store, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: H2 Electrolysis, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: methanol, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: methanolisation, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: ammonia store, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: Haber-Bosch, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: gas, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: oil, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: EV battery, component: Store, attribute: e_nom, weight: capital_cost}
     heating:
       - {carrier: urban central air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
       - {carrier: urban central resistive heater, component: Link, attribute: p_nom, weight: capital_cost}
@@ -84,35 +84,36 @@ near-opt:
       - {carrier: rural gas boiler, component: Link, attribute: p_nom, weight: capital_cost}
       - {carrier: rural biomass boiler, component: Link, attribute: p_nom, weight: capital_cost}
     tes:
-      # - {carrier: urban central water tanks, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: urban central water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban central water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban central water pits, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: urban central water pits charger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban central water pits discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban decentral water tanks, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: urban decentral water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban decentral water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: rural water tanks, component: Store, attribute: e_nom, weight: capital_cost}
-      # - {carrier: rural water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: rural water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central water tanks, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: urban central water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central water pits, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: urban central water pits charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central water pits discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral water tanks, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: urban decentral water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban decentral water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural water tanks, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: rural water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: rural water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
     backup:
-      # - {carrier: OCGT, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: CCGT, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: H2 Fuel Cell, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: H2 turbine, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban central gas CHP, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban central gas CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban central solid biomass CHP, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: urban central solid biomass CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
-      # - {carrier: OCGT methanol, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: OCGT, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: CCGT, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: H2 Fuel Cell, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: H2 turbine, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central gas CHP, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central gas CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central solid biomass CHP, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central solid biomass CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: OCGT methanol, component: Link, attribute: p_nom, weight: capital_cost}
     nuclear:
       - {carrier: nuclear, component: Generator, attribute: p_nom, weight: capital_cost}
   slack:
     relative: false
-    value: 3e10 # 30 bn EUR
+    value: 5e9 # 10 bn EUR
   cache_dir: "mga-cache"
   validation:
+    enable: true
     # MGA validation: test MGA capacity solutions with different operational weather years
     # Options:
     #   "all" - Test all MGA directions found in cache_dir (default)
@@ -1222,4 +1223,4 @@ solving:
 
   mem_mb: 128000
   memory_logging_frequency: 5 # in seconds
-  runtime: 48h #runtime in humanfriendly style https://humanfriendly.readthedocs.io/en/latest/
+  runtime: 360 #runtime in humanfriendly style https://humanfriendly.readthedocs.io/en/latest/

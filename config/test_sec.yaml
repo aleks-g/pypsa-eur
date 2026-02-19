@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz 
+# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 #
 # SPDX-License-Identifier: CC0-1.0
 
@@ -6,133 +6,20 @@
 version: v2025.07.0
 tutorial: false
 
-logging:
-  level: INFO
-  format: '%(levelname)s:%(name)s:%(message)s'
-
-remote:
-  ssh: ""
-  path: ""
-
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "sector_droughts+h2+bio"
+  prefix: "test_sec"
   name: "all"
   scenarios:
     enable: true
-    file: config/design_stress_years.yaml
+    file: config/weather_scenarios.yaml
   disable_progressbar: false
   shared_resources:
     policy: false
     exclude: []
   shared_cutouts: false
-  use_shadow_directory: false
-  fixed_network:
-    enable: true
-    scenario: "weather_year_2013_3H" # ensure that the scenario here is a subset of scenarios["file"]
-  stress_tests: 
-    enable: true
-    design_years: config/design_years.yaml # ensure that the scenarios here are a subset of scenarios["file"]
-    stress_years: config/stress_tests.yaml # ensure that the scenarios here are a subset of scenarios["file"]
-    mode: co2-price # co2-limit
-
-near-opt:
-  enable: true
-  approx:
-    minmax: true
-    iterations: 10 # does not include minmax runs
-    directions: "random-uniform" # "halton"
-    seed: 123 # possibly None
-    max_parallel: 1
-  projection:
-    renewables:
-      - {carrier: solar, component: Generator, attribute: p_nom, weight: capital_cost}
-      - {carrier: solar-hsat, component: Generator, attribute: p_nom, weight: capital_cost}
-      - {carrier: solar rooftop, component: Generator, attribute: p_nom, weight: capital_cost}
-      - {carrier: onwind, component: Generator, attribute: p_nom, weight: capital_cost}
-      - {carrier: offwind-ac, component: Generator, attribute: p_nom, weight: capital_cost}
-      - {carrier: offwind-dc, component: Generator, attribute: p_nom, weight: capital_cost}
-      - {carrier: offwind-float, component: Generator, attribute: p_nom, weight: capital_cost}
-    storage:
-      - {carrier: battery, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: battery charger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: home battery, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: home battery charger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: home battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: H2 Store, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: H2 Electrolysis, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: methanol, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: methanolisation, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: ammonia store, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: Haber-Bosch, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: gas, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: oil, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: EV battery, component: Store, attribute: e_nom, weight: capital_cost}
-    heating:
-      - {carrier: urban central air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central resistive heater, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central gas boiler, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban decentral air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban decentral resistive heater, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban decentral gas boiler, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban decentral biomass boiler, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: rural air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: rural ground heat pump, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: rural resistive heater, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: rural gas boiler, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: rural biomass boiler, component: Link, attribute: p_nom, weight: capital_cost}
-    tes:
-      - {carrier: urban central water tanks, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: urban central water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central water pits, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: urban central water pits charger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central water pits discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban decentral water tanks, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: urban decentral water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban decentral water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: rural water tanks, component: Store, attribute: e_nom, weight: capital_cost}
-      - {carrier: rural water tanks charger, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: rural water tanks discharger, component: Link, attribute: p_nom, weight: capital_cost}
-    backup:
-      - {carrier: OCGT, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: CCGT, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: H2 Fuel Cell, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: H2 turbine, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central gas CHP, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central gas CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central solid biomass CHP, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: urban central solid biomass CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: OCGT methanol, component: Link, attribute: p_nom, weight: capital_cost}
-    nuclear:
-      - {carrier: nuclear, component: Generator, attribute: p_nom, weight: capital_cost}
-  slack:
-    relative: false
-    value: 3e10 # 10 bn EUR
-  cache_dir: "mga-cache"
-  validation:
-    enable: true
-    # MGA validation: test MGA capacity solutions with different operational weather years
-    # Options:
-    #   "all" - Test all MGA directions found in cache_dir (default)
-    #   "path/to/subset.csv" - Test only specific directions listed in CSV file
-    #
-    # To create a subset CSV, extract dir_hash values from the coords cache file:
-    # Example:
-    #   import pandas as pd
-    #   coords = pd.read_csv("mga-cache/coords_abc123.csv")
-    #   # Select specific directions (e.g., first 5)
-    #   subset = coords[["dir_hash"]].head(5)
-    #   subset.to_csv("mga-cache/test_subset.csv", index=False)
-    # Then set: test_directions: "mga-cache/test_subset.csv"
-    test_directions: "all"
-  # cache_val:
-  #   capacities: false
-  #   net_load: false
-    
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#foresight
-foresight: overnight
+  stress_tests: config/stress_tests.yaml
+  # use_shadow_directory: false
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#scenario
 # Wildcard docs in https://pypsa-eur.readthedocs.io/en/latest/wildcards.html
@@ -183,30 +70,15 @@ countries:
 - SK
 
 
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#snapshots
-snapshots:
-  start: "2013-01-01"
-  end: "2014-01-01"
-  inclusive: 'left'
-
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#enable
 enable:
-  retrieve: auto
+  retrieve: true
   retrieve_databundle: true
   retrieve_cost_data: true
   build_cutout: false
   retrieve_cutout: false
   drop_leap_day: true
 
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#co2-budget
-co2_budget:
-  2020: 0.720 # average emissions of 2019 to 2021 relative to 1990, CO2 excl LULUCF, EEA data, European Environment Agency. (2023a). Annual European Union greenhouse gas inventory 1990–2021 and inventory report 2023 - CRF Table. https://unfccc.int/documents/627830
-  2025: 0.648 # With additional measures (WAM) projection, CO2 excl LULUCF, European Environment Agency. (2023e). Member States’ greenhouse gas (GHG) emission projections 2023. https://www.eea.europa.eu/en/datahub/datahubitem-view/4b8d94a4-aed7-4e67-a54c-0623a50f48e8
-  2030: 0.450 # 55% reduction by 2030 (Ff55)
-  2035: 0.250
-  2040: 0.100 # 90% by 2040
-  2045: 0.050
-  2050: 0.000 # climate-neutral by 2050
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#electricity
 electricity:
@@ -230,7 +102,7 @@ electricity:
     H2: 168
 
   extendable_carriers:
-    Generator: [solar, solar-hsat, onwind, offwind-ac, offwind-dc, offwind-float, OCGT, CCGT, nuclear]
+    Generator: [solar, solar-hsat, onwind, offwind-ac, offwind-dc, offwind-float, OCGT, CCGT]
     StorageUnit: [] # battery, H2
     Store: [battery, H2]
     Link: [] # H2 pipeline
@@ -243,8 +115,8 @@ electricity:
   renewable_carriers: [solar, solar-hsat, onwind, offwind-ac, offwind-dc, offwind-float, hydro]
 
   estimate_renewable_capacities:
-    enable: true
-    from_gem: true
+    enable: false
+    from_gem: false
     year: 2020
     expansion_limit: false
     technology_mapping:
@@ -256,32 +128,30 @@ electricity:
     enable: false
     by_country: false
 
-  transmission_limit: v1.25
+  transmission_limit: v1.0
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#atlite
 atlite:
   cutout_directory: cutouts
-  default_cutout: europe-2013-sarah3-era5
-  nprocesses: 16
+  default_cutout: europe-1941-1946-era5
+  nprocesses: 4
   show_progress: false
   cutouts:
     # use 'base' to determine geographical bounds and time span from config
     # base:
       # module: era5
-    europe-2013-sarah3-era5:
+    europe-1941-1946-era5:
       module: [sarah, era5] # in priority order
-      x: [-12., 42.]
+      x: [-12., 35.]
       y: [33., 72.]
-      dx: 0.3
-      dy: 0.3
+      dx: 0.25
+      dy: 0.25
       time: ['2013', '2013']
-      # features: [] 
-      # sarah_dir: ""
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#renewable
 renewable:
   onwind:
-    cutout: default
+    cutout: europe-1941-1946-era5
     resource:
       method: wind
       turbine: Vestas_V112_3MW
@@ -302,7 +172,7 @@ renewable:
     excluder_resolution: 100
     clip_p_max_pu: 1.e-2
   offwind-ac:
-    cutout: default
+    cutout: europe-1941-1946-era5
     resource:
       method: wind
       turbine: NREL_ReferenceTurbine_2020ATB_5.5MW
@@ -321,7 +191,7 @@ renewable:
     clip_p_max_pu: 1.e-2
     landfall_length: 20
   offwind-dc:
-    cutout: default
+    cutout: europe-1941-1946-era5
     resource:
       method: wind
       turbine: NREL_ReferenceTurbine_2020ATB_5.5MW
@@ -340,13 +210,13 @@ renewable:
     clip_p_max_pu: 1.e-2
     landfall_length: 30
   offwind-float:
-    cutout: default
+    cutout: europe-1941-1946-era5
     resource:
       method: wind
       turbine: NREL_ReferenceTurbine_5MW_offshore
       smooth: false
       add_cutout_windspeed: true
-    resource_classes: 1
+    resource_classes: 3
     # ScholzPhd Tab 4.3.1: 10MW/km^2
     capacity_per_sqkm: 2
     correction_factor: 0.8855
@@ -362,7 +232,7 @@ renewable:
     clip_p_max_pu: 1.e-2
     landfall_length: 40
   solar:
-    cutout: default
+    cutout: europe-1941-1946-era5
     resource:
       method: pv
       panel: CSi
@@ -378,7 +248,7 @@ renewable:
     excluder_resolution: 100
     clip_p_max_pu: 1.e-2
   solar-hsat:
-    cutout: default
+    cutout: europe-1941-1946-era5
     resource:
       method: pv
       panel: CSi
@@ -394,7 +264,7 @@ renewable:
     excluder_resolution: 100
     clip_p_max_pu: 1.e-2
   hydro:
-    cutout: default
+    cutout: europe-1941-1946-era5
     carriers: [ror, PHS, hydro]
     PHS_max_hours: 6
     hydro_max_hours: energy_capacity_totals_by_country # one of energy_capacity_totals_by_country, estimate_by_large_installations or a float
@@ -405,88 +275,6 @@ renewable:
     eia_correct_by_capacity: true
     eia_approximate_missing: true
 
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#conventional
-conventional:
-  unit_commitment: false
-  dynamic_fuel_price: false
-  nuclear:
-    p_max_pu: data/nuclear_p_max_pu.csv # float of file name
-
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#lines
-lines:
-  types:
-    63.: 94-AL1/15-ST1A 20.0
-    66.: 94-AL1/15-ST1A 20.0
-    90.: 184-AL1/30-ST1A 110.0
-    110.: 184-AL1/30-ST1A 110.0
-    132.: 243-AL1/39-ST1A 110.0
-    150.: 243-AL1/39-ST1A 110.0
-    220.: Al/St 240/40 2-bundle 220.0
-    300.: Al/St 240/40 3-bundle 300.0
-    330.: Al/St 240/40 3-bundle 300.0
-    380.: Al/St 240/40 4-bundle 380.0
-    400.: Al/St 240/40 4-bundle 380.0
-    500.: Al/St 240/40 4-bundle 380.0
-    750.: Al/St 560/50 4-bundle 750.0
-  s_max_pu: 0.7
-  s_nom_max: .inf
-  max_extension: 20000 #MW
-  length_factor: 1.25
-  reconnect_crimea: true
-  under_construction: keep # 'zero': set capacity to zero, 'remove': remove, 'keep': with full capacity for lines in grid extract
-  dynamic_line_rating:
-    activate: false
-    cutout: default
-    correction_factor: 0.95
-    max_voltage_difference: false
-    max_line_rating: false
-
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#links
-links:
-  p_max_pu: 1.0
-  p_min_pu: -1.0
-  p_nom_max: .inf
-  max_extension: 30000 #MW
-  length_factor: 1.25
-  under_construction: keep # 'zero': set capacity to zero, 'remove': remove, 'keep': with full capacity for lines in grid extract
-
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#transmission_projects
-transmission_projects:
-  enable: true
-  include:
-    tyndp2020: true
-    nep: true
-    manual: true
-  skip:
-  - upgraded_lines
-  - upgraded_links
-  status:
-  - under_construction
-  - in_permitting
-  - confirmed
-    #- planned_not_yet_permitted
-    #- under_consideration
-  new_link_capacity: zero #keep or zero
-
-# docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#transformers
-transformers:
-  x: 0.1
-  s_nom: 2000.
-  type: ''
-
-# docs-load in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#load
-load:
-  fill_gaps:
-    enable: true
-    interpolate_limit: 3
-    time_shift_for_large_gaps: 1w
-  manual_adjustments: true
-  scaling_factor: 1.0
-  fixed_year: false
-  supplement_synthetic: true
-  distribution_key:
-    gdp: 0.6
-    population: 0.4
 
 # docs
 # TODO: PyPSA-Eur merge issue in prepare_sector_network.py
@@ -665,7 +453,7 @@ sector:
     - air
     - ground
   cluster_heat_buses: true
-  heat_demand_cutout: default #TODO: Check if scenario includes this.
+  heat_demand_cutout: default
   bev_dsm_restriction_value: 0.8
   bev_dsm_restriction_time: 7
   transport_heating_deadband_upper: 20.
@@ -817,7 +605,7 @@ sector:
   co2_sequestration_cost: 30
   co2_sequestration_lifetime: 50
   co2_spatial: true
-  co2_network: false
+  co2_network: true
   co2_network_cost_factor: 1
   cc_fraction: 0.9
   hydrogen_underground_storage: true
@@ -875,7 +663,7 @@ sector:
   gas_distribution_grid: true
   gas_distribution_grid_cost_factor: 1.0
   biomass_spatial: true
-  biomass_transport: true # false
+  biomass_transport: false
   biogas_upgrading: true
   biogas_upgrading_cc: false
   conventional_generation:
@@ -1078,7 +866,7 @@ clustering:
       ramp_limit_down: max
   temporal:
     resolution_elec: false
-    resolution_sector: 3H
+    resolution_sector: 50seg
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#adjustments
 adjustments:
@@ -1163,7 +951,7 @@ solving:
       dual_feasibility_tolerance: 1e-5
       random_seed: 123
     gurobi-default:
-      threads: 32
+      threads: 16
       method: 2 # barrier
       crossover: 0
       BarConvTol: 1.e-5

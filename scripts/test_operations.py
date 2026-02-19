@@ -106,6 +106,13 @@ def extract_shedding_metrics(n: pypsa.Network) -> tuple:
 
     return load_shedding, heat_shedding
 
+# def extract_operational_costs(n)
+
+# def extract_electricity_prices(n)
+
+# def extract_net_load(n)
+
+# def extract_dispatch(n)
 
 if __name__ == "__main__":
     if "snakemake" not in globals():
