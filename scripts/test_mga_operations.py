@@ -59,8 +59,25 @@ def apply_mga_capacities(n: pypsa.Network, capacities_df: pd.DataFrame) -> None:
     capacities_df : pd.DataFrame
         MGA capacities in long format (component, name, attribute, value)
     """
+    # Component name mapping for new PyPSA API
+    component_map = {
+        'Generator': 'generators',
+        'Store': 'stores',
+        'Link': 'links',
+        'Line': 'lines',
+        'StorageUnit': 'storage_units',
+        'Load': 'loads',
+        'Bus': 'buses',
+    }
     for component in capacities_df["component"].unique():
         component_caps = capacities_df[capacities_df["component"] == component]
+
+        # Get component dataframe using new API (removes deprecation warning)
+        component_attr = component_map.get(component, component.lower())
+        try:
+            comp_df = getattr(n, component_attr)
+        except AttributeError:
+            continue
 
         for attribute in component_caps["attribute"].unique():
             attr_caps = component_caps[component_caps["attribute"] == attribute]
@@ -70,12 +87,10 @@ def apply_mga_capacities(n: pypsa.Network, capacities_df: pd.DataFrame) -> None:
                 name = row["name"]
                 value = row["value"]
 
-                try:
-                    n.df(component).loc[name, attribute] = value
-                except KeyError:
-                    logger.warning(
-                        f"Component {component} '{name}' not found in network. Skipping."
-                    )
+                # Check existence to prevent NaN rows (no warning spam)
+                if name in comp_df.index:
+                    comp_df.loc[name, attribute] = value
+
 
 
 if __name__ == "__main__":
@@ -170,5 +185,7 @@ if __name__ == "__main__":
         logger.info(f"MGA validation complete for direction {snakemake.wildcards.dir_hash}, year {snakemake.wildcards.operational_year}")
 
     except Exception as e:
-        logger.error(f"Error in MGA validation: {e}")
-        sys.exit(1)
+          logger.exception(f"Error in MGA validation: {e}")  # Changed to .exception()
+          import traceback
+          traceback.print_exc()  # Print full traceback
+          sys.exit(1)
