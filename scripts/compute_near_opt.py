@@ -13,6 +13,7 @@ import logging
 import numpy as np
 import pandas as pd
 import pypsa
+from pathlib import Path
 
 from _helpers import (
     configure_logging,
