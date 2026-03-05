@@ -4,7 +4,6 @@
 
 import yaml
 import pandas as pd
-import hashlib
 from pathlib import Path
 
 def design_years(file_path):
@@ -82,68 +81,46 @@ def get_network_hash_from_cache(cache_dir):
     return network_hashes
 
 
-def compute_network_hash(network_file):
-    """
-    Compute MD5 hash of a network file.
-
-    Parameters
-    ----------
-    network_file : str or Path
-        Path to network .nc file
-
-    Returns
-    -------
-    str or None
-        First 8 characters of MD5 hash, or None if file doesn't exist
-    """
-    file_path = Path(network_file)
-    if not file_path.exists():
-        return None
-
-    try:
-        hasher = hashlib.md5()
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b""):  # 64kb chunks
-                hasher.update(chunk)
-        # Return first 8 characters like other hashes in the system
-        return hasher.hexdigest()[:8]
-    except Exception as e:
-        print(f"Warning: Could not compute hash for {network_file}: {e}")
-        return None
-
-
 def get_network_hash_for_near_opt(near_opt_file, cache_dir, design_year=None, scenario=None):
     """
-    Get the specific network hash for a given near_opt CSV file.
+    Get the network hash from the network_hash.txt file.
 
-    Computes the hash directly from the network file used for that design_year.
+    Reads the network hash from the network_hash.txt file in the same
+    directory as the near_opt CSV file.
 
     Parameters
     ----------
     near_opt_file : str or Path
-        Path to near_opt_solutions CSV file (used for validation only)
+        Path to near_opt_solutions CSV file
     cache_dir : str or Path
         Path to cache directory (unused, kept for compatibility)
     design_year : str, optional
-        Design year (e.g., 'weather_year_2013_3H')
+        Design year (unused, kept for compatibility)
     scenario : str, optional
-        Scenario string (e.g., 'base_s_50_lv1.0_50seg_Co2L0.0+T+H+B+I+A_2050')
+        Scenario string (unused, kept for compatibility)
 
     Returns
     -------
     str or None
-        Network hash for this design_year, or None if not found
+        Network hash from the hash file, or None if not found
     """
-    if design_year is None or scenario is None:
+    near_opt_path = Path(near_opt_file)
+    if not near_opt_path.exists():
         return None
 
-    # Construct path to network file for this design_year
-    network_file = (
-        f"results/{config['run']['prefix']}/{design_year}/networks/"
-        f"{scenario}.nc"
-    )
+    # Look for network_hash.txt in same directory
+    hash_file = near_opt_path.parent / "network_hash.txt"
 
-    return compute_network_hash(network_file)
+    if not hash_file.exists():
+        print(f"Warning: {hash_file} not found")
+        return None
+
+    try:
+        network_hash = hash_file.read_text().strip()
+        return network_hash
+    except Exception as e:
+        print(f"Warning: Could not read network_hash from {hash_file}: {e}")
+        return None
 
 
 
