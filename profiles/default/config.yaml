@@ -4,4 +4,4 @@
 
 # See https://snakemake.readthedocs.io/en/stable/executing/cli.html#profiles
 
-logger: pypsa
+# logger: pypsa  # Removed - not compatible with Snakemake 8.x
