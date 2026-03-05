@@ -90,9 +90,11 @@ if config["run"]["fixed_network"].get("enable", False):
             "../envs/environment.yaml"
         script:
             "../scripts/solve_second_network.py"
-    
+
 else:
     rule solve_sector_network:
+        message:
+            "Solving sector-coupled network with overnight investment optimization for {wildcards.clusters} clusters, {wildcards.planning_horizons} planning horizons, {wildcards.opts} electric options and {wildcards.sector_opts} sector options"
         params:
             solving=config_provider("solving"),
             foresight=config_provider("foresight"),
@@ -109,6 +111,12 @@ else:
             + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
             config=RESULTS
             + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.yaml",
+            model=(
+                RESULTS
+                + "models/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
+                if config["solving"]["options"]["store_model"]
+                else []
+            ),
         shadow:
             shadow_config
         log:
@@ -130,11 +138,10 @@ else:
         conda:
             "../envs/environment.yaml"
         script:
-            "../scripts/solve_network.py"
+            scripts("solve_network.py")
 
 
-
-
+# Custom rule for operational testing with different weather years
 rule test_operations:
     params:
         solving=config_provider("solving"),
