@@ -83,9 +83,9 @@ def get_network_hash_from_cache(cache_dir):
 
 def get_network_hash_for_near_opt(near_opt_file, cache_dir, design_year=None, scenario=None):
     """
-    Get the network hash from the network_hash.txt file.
+    Get the network hash from the network_hash txt file.
 
-    Reads the network hash from the network_hash.txt file in the same
+    Reads the network hash from the corresponding hash file in the same
     directory as the near_opt CSV file.
 
     Parameters
@@ -108,8 +108,9 @@ def get_network_hash_for_near_opt(near_opt_file, cache_dir, design_year=None, sc
     if not near_opt_path.exists():
         return None
 
-    # Look for network_hash.txt in same directory
-    hash_file = near_opt_path.parent / "network_hash.txt"
+    # Construct hash filename by replacing .csv with _network_hash.txt
+    # e.g., base_s_50___2050.csv -> base_s_50___2050_network_hash.txt
+    hash_file = near_opt_path.with_suffix('').with_suffix('').parent / (near_opt_path.stem + "_network_hash.txt")
 
     if not hash_file.exists():
         print(f"Warning: {hash_file} not found")
