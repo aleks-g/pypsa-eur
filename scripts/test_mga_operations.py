@@ -19,7 +19,7 @@ from _helpers import (
     set_scenario_config,
     update_config_from_wildcards,
 )
-from solve_network import prepare_network, solve_network
+from solve_network import prepare_network, collect_kwargs, create_optimization_model
 from _benchmark import memory_logger
 from test_operations import set_weather, set_co2_price, extract_shedding_metrics
 
@@ -165,13 +165,22 @@ if __name__ == "__main__":
         with memory_logger(
             filename=getattr(snakemake.log, "memory", None), interval=logging_frequency
         ) as mem:
-            solve_network(
+            model_kwargs, solve_kwargs = collect_kwargs(
+                snakemake.config,
+                snakemake.params.solving,
+                planning_horizons,
+                log_fn=snakemake.log.solver,
+                mode="single",
+            )
+            create_optimization_model(
                 n,
                 config=snakemake.config,
                 params=snakemake.params,
-                solving=snakemake.params.solving,
-                log_fn=snakemake.log.solver,
+                model_kwargs=model_kwargs,
+                solve_kwargs=solve_kwargs,
+                planning_horizons=planning_horizons,
             )
+            status, condition = n.optimize.solve_model(**solve_kwargs)
 
         logger.info(f"Maximum memory usage: {mem.mem_usage}")
 
