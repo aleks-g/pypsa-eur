@@ -5,6 +5,9 @@
 import hashlib
 import json
 
+# Prefer parallel aggregation over monolithic compute when both could produce the output
+ruleorder: aggregate_near_opt > compute_near_opt
+
 
 rule compute_near_opt:
     params:
