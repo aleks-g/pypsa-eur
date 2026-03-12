@@ -23,7 +23,7 @@ rule compute_near_opt:
         ),
         slack=config_provider("near-opt", "slack", "value"),
     message:
-        "Computing near-optimal solutions for design year {wildcards.design_year} "
+        "Computing near-optimal solutions for {wildcards.run} "
         "({params.total_directions} directions, slack={params.slack})"
     input:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
@@ -124,7 +124,7 @@ checkpoint generate_near_opt_directions:
         ),
         slack=config_provider("near-opt", "slack", "value"),
     message:
-        "Generating near-optimal direction files for design year {wildcards.design_year} "
+        "Generating near-optimal direction files for {wildcards.run} "
         "({params.total_directions} directions, slack={params.slack})"
     input:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
@@ -200,8 +200,8 @@ rule compute_near_opt_batch:
         max_parallel=config_provider("near-opt", "approx", "max_parallel"),
         slack=config_provider("near-opt", "slack", "value"),
     message:
-        "Solving near-optimal batch {wildcards.batch_hash} for design year "
-        "{wildcards.design_year} ({params.max_parallel} directions, slack={params.slack})"
+        "Solving near-optimal batch {wildcards.batch_hash} for {wildcards.run} "
+        "({params.max_parallel} directions, slack={params.slack})"
     input:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
         direction_files=_get_batch_direction_files,
@@ -229,7 +229,7 @@ rule aggregate_near_opt:
     params:
         solving=config_provider("solving"),
     message:
-        "Aggregating near-optimal batch results for design year {wildcards.design_year}"
+        "Aggregating near-optimal batch results for {wildcards.run}"
     input:
         batch_results=_get_all_batch_results,
         manifest=RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_manifest.json",
