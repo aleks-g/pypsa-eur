@@ -179,7 +179,13 @@ if __name__ == "__main__":
                 planning_horizons=planning_horizons,
             )
             status, condition = n.optimize.solve_model(**solve_kwargs)
-        
+            if status == "warning":
+                logger.warning(
+                    f"Solver status: {status}, condition: {condition} - "
+                    f"printing infeasibilities"
+                )
+                n.optimize.print_infeasibilities()
+
         logger.info(f"Maximum memory usage: {mem.mem_usage}")
 
         n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
