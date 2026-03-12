@@ -166,6 +166,7 @@ def _get_batch_direction_files(wildcards):
     return expand(
         RESULTS + "near_opt/directions/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/{dir_hash}.json",
         dir_hash=batch_dirs,
+        run=wildcards.run,
         clusters=wildcards.clusters,
         opts=wildcards.opts,
         sector_opts=wildcards.sector_opts,
@@ -179,6 +180,7 @@ def _get_all_batch_results(wildcards):
     return expand(
         RESULTS + "near_opt/batches/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/batch_{batch_hash}.csv",
         batch_hash=list(batches.keys()),
+        run=wildcards.run,
         clusters=wildcards.clusters,
         opts=wildcards.opts,
         sector_opts=wildcards.sector_opts,
