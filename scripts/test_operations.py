@@ -181,10 +181,12 @@ if __name__ == "__main__":
             status, condition = n.optimize.solve_model(**solve_kwargs)
             if status == "warning":
                 logger.warning(
-                    f"Solver status: {status}, condition: {condition} - "
-                    f"printing infeasibilities"
+                    f"Solver status: {status}, condition: {condition}"
                 )
-                n.optimize.print_infeasibilities()
+                try:
+                    n.model.print_infeasibilities()
+                except AttributeError:
+                    logger.warning("print_infeasibilities not available in this pypsa version")
 
         logger.info(f"Maximum memory usage: {mem.mem_usage}")
 
