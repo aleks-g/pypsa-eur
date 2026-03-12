@@ -40,7 +40,7 @@ near-opt:
   enable: true
   approx:
     minmax: true
-    iterations: 1000 # does not include minmax runs
+    iterations: 10 # does not include minmax runs
     directions: "random-uniform" # "halton"
     seed: 123 # possibly None
     max_parallel: 10
@@ -212,8 +212,7 @@ co2_budget:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#electricity
 electricity:
   voltages: [220., 300., 330., 380., 400., 500., 750.]
-  base_network: osm-prebuilt
-  osm-prebuilt-version: 0.6
+  base_network: osm
   gaslimit_enable: false
   gaslimit: false
   co2limit_enable: false
@@ -489,6 +488,10 @@ load:
   distribution_key:
     gdp: 0.6
     population: 0.4
+
+data:
+  osm:
+    version: "0.6"
 
 # docs
 # TODO: PyPSA-Eur merge issue in prepare_sector_network.py
@@ -1100,7 +1103,7 @@ solving:
     skip_iterations: true
     rolling_horizon: false
     seed: 123
-    custom_extra_functionality: false
+    custom_extra_functionality: 
     # io_api: "direct"  # Increases performance but only supported for the highs and gurobi solvers
     # options that go into the optimize function
     track_iterations: false
@@ -1218,4 +1221,4 @@ solving:
 
   mem_mb: 128000
   memory_logging_frequency: 5 # in seconds
-  runtime: 360 #runtime in humanfriendly style https://humanfriendly.readthedocs.io/en/latest/
+  runtime: 24h #runtime in humanfriendly style https://humanfriendly.readthedocs.io/en/latest/
