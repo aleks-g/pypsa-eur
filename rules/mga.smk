@@ -67,7 +67,7 @@ rule validation_mga:
     message:
         "Validating near-optimal solution {wildcards.dir_hash} | "
         "design {wildcards.design_year} | stress {wildcards.operational_year} | "
-        "network {wildcards.network_hash} | attempt {attempt}"
+        "network {wildcards.network_hash}"
     input:
         network="results/" + config["run"]["prefix"] +
             "/{design_year}/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
