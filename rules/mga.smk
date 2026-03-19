@@ -67,7 +67,7 @@ rule validation_mga:
     message:
         "Validating near-optimal solution {wildcards.dir_hash} | "
         "design {wildcards.design_year} | stress {wildcards.operational_year} | "
-        "network {wildcards.network_hash}"
+        "network {wildcards.network_hash} | attempt {attempt}"
     input:
         network="results/" + config["run"]["prefix"] +
             "/{design_year}/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
@@ -83,7 +83,7 @@ rule validation_mga:
         heat_shedding="results/" + config["run"]["prefix"] +
             "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_heat_shedding.csv",
     shadow:
-        shadow_config
+        None
     log:
         solver="results/" + config["run"]["prefix"] +
             "/{design_year}/logs/mga/validation_mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_solver.log",
@@ -91,10 +91,11 @@ rule validation_mga:
             "/{design_year}/logs/mga/validation_mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_memory.log",
         python="results/" + config["run"]["prefix"] +
             "/{design_year}/logs/mga/validation_mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+    retries: 3
     threads: solver_threads
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
-        runtime=config_provider("solving", "runtime", default="6h"),
+        runtime=8 * 60,
     benchmark:
         "results/" + config["run"]["prefix"] +
             "/{design_year}/benchmarks/mga/validation_mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
@@ -102,6 +103,25 @@ rule validation_mga:
         "../envs/environment.yaml"
     script:
         "../scripts/test_mga_operations.py"
+
+
+rule collect_mga_validation:
+    """Aggregate all MGA validation results for a design year into a single summary CSV.
+
+    Scans the validation directory for existing results — missing validations
+    (infeasible after all retries) appear as rows with status=infeasible.
+    """
+    input:
+        near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        network_hash=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_network_hash.txt",
+    output:
+        summary=RESULTS + "validation/_summary_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+    log:
+        python=RESULTS + "logs/mga/collect_mga_validation/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/collect_mga_validation.py"
 
 
 # ========== Near-Opt Multi-Node Parallelization ==========
