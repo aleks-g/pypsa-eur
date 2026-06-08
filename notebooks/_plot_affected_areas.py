@@ -510,7 +510,7 @@ def plot_affected_areas(
     '''
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(10, 10), subplot_kw={"projection": projection})
-    n.plot(ax=ax, bus_sizes=0, bus_colors="black", line_widths=0, link_widths=0, link_colors="black", line_colors="black",color_geomap=True)
+    n.plot(ax=ax, bus_sizes=0, bus_colors="black", line_widths=0, link_widths=0, link_colors="black", line_colors="black")
 
     start = period.start
     end = period.end

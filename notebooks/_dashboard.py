@@ -851,7 +851,7 @@ def plot_dashboard_simplified(
         # Remove border around axes.
         sub_ax.axis("off")
     sub_axes[0].legend(
-        ["All system-defining events", "SDEs in the same cluster", "Systerm-defining events"],
+        ["All system-defining events", "SDEs in the same cluster", "System-defining events"],
         loc="upper left",
         bbox_to_anchor=(0.15, 0),
         fontsize=7,
