@@ -11,6 +11,7 @@ import json
 import logging
 
 import numpy as np
+import pandas as pd
 import pypsa
 import sys
 from _helpers import (
@@ -108,30 +109,51 @@ def extract_shedding_metrics(n: pypsa.Network) -> tuple:
 
     return load_shedding, heat_shedding
 
-# def extract_operational_costs(n)
 
 def extract_marginal_prices(n):
     """
     Extract nodal marginal prices from a solved validation dispatch.
 
-    Returns electricity and heat prices as (snapshots x nodes) DataFrames.
+    Returns prices for electricity, H2, CO2, and heat variants.
+    Prices are shadow prices of the node balance constraint (EUR/MWh or EUR/t for CO2).
 
     Returns
     -------
     dict
-        Keys 'electricity' and 'heat'; each is a DataFrame of marginal prices (EUR/MWh).
+        Keys: 'electricity', 'h2', 'co2_stored', 'heat_urban_central',
+              'heat_urban_decentral', 'heat_rural'.
+        Each value is a DataFrame of marginal prices (snapshots x nodes).
     """
     prices = {}
-    elec_buses = n.buses[n.buses.carrier == "electricity"].index
-    if not elec_buses.empty:
-        prices["electricity"] = n.buses_t.marginal_price[elec_buses]
-    else:
-        raise ValueError("No 'electricity' buses found; check carrier names.")
-    heat_buses = n.buses[n.buses.carrier.str.contains("heat", case=False, na=False)].index
-    if not heat_buses.empty:
-        prices["heat"] = n.buses_t.marginal_price[heat_buses].sort_index(axis=1)
-    else:
-        logger.warning("No 'heat' buses found; heat prices absent.")
+
+    # Carrier-based buses
+    carriers = {
+        'electricity': 'AC',
+        'h2': 'H2',
+        'co2_stored': 'co2 stored',
+    }
+
+    for key, carrier in carriers.items():
+        buses = n.buses[n.buses.carrier == carrier].index
+        if not buses.empty:
+            prices[key] = n.buses_t.marginal_price[buses].sort_index(axis=1)
+        else:
+            logger.warning(f"No buses found for '{key}'")
+
+    # Heat buses (by name pattern)
+    heat_patterns = {
+        'heat_urban_central': 'urban central heat',
+        'heat_urban_decentral': 'urban decentral heat',
+        'heat_rural': 'rural heat',
+    }
+
+    for key, pattern in heat_patterns.items():
+        buses = n.buses[n.buses.index.str.contains(pattern, case=False, na=False)].index
+        if not buses.empty:
+            prices[key] = n.buses_t.marginal_price[buses].sort_index(axis=1)
+        else:
+            logger.warning(f"No buses found for '{key}'")
+
     return prices
 
 if __name__ == "__main__":
@@ -234,7 +256,7 @@ if __name__ == "__main__":
         # Extract net load
         nl = extract_net_load(n, heating=True)
         netload_df = pd.DataFrame({"elec": nl["elec"], "heat": nl["heat"]})
-        netload_df.to_csv(snakemake.output.netload)
+        netload_df.to_csv(snakemake.output.net_load)
 
         # Extract emissions
         emissions = extract_emissions(n)
