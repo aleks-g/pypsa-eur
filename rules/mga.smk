@@ -7,6 +7,7 @@ import json
 
 # Prefer parallel aggregation over monolithic compute when both could produce the output
 ruleorder: aggregate_near_opt > compute_near_opt
+ruleorder: validation_mga > test_operations
 
 
 rule compute_near_opt:
@@ -82,6 +83,16 @@ rule validation_mga:
             "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv",
         heat_shedding="results/" + config["run"]["prefix"] +
             "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_heat_shedding.csv",
+        net_load="results/" + config["run"]["prefix"] +
+            "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_load.csv",
+        emissions="results/" + config["run"]["prefix"] +
+            "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_emissions.csv",
+        elec_prices="results/" + config["run"]["prefix"] +
+            "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_elec_prices.csv",
+        heat_prices="results/" + config["run"]["prefix"] +
+            "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_heat_prices.csv",
+        objective="results/" + config["run"]["prefix"] +
+            "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_objective.json",
     shadow:
         None
     log:
@@ -277,3 +288,5 @@ rule aggregate_near_opt:
         Path(output.network_hash).write_text(manifest["network_hash"])
 
         logger.info("Aggregation complete")
+
+

@@ -28,7 +28,7 @@ from compute_near_opt import (
     fill_dimension_weights,
     load_dimensions_from_config,
 )
-from mga_helpers import export_mga_capacities
+from mga_helpers import export_mga_capacities, export_mga_information
 from solve_second_network import fix_networks
 
 logger = logging.getLogger(__name__)
@@ -113,6 +113,11 @@ if __name__ == "__main__":
     cache_dir = mga_config.get("cache_dir", None)
 
     logger.info(f"Using solver: {solver_name}, cache_dir: {cache_dir}")
+    # Set co2 atmosphere store to cyclic
+    if m.stores[m.stores['bus'] == 'co2 atmosphere'].e_cyclic.item() == False:
+        idx = m.stores.index[m.stores["bus"].eq("co2 atmosphere")]
+        m.stores.loc[idx, "e_cyclic"] = True
+    logger.info("Set 'co2 atmosphere' store to cyclic")
 
     # Run near-opt optimisation for this batch
     successful_directions, successful_coordinates = (
@@ -120,7 +125,7 @@ if __name__ == "__main__":
             directions=directions_df,
             dimensions=dimensions,
             cache_dir=cache_dir,
-            mga_extra_functionality=export_mga_capacities,
+            mga_extra_functionality=export_mga_information,
             snapshots=None,
             multi_investment_periods=False,
             slack=slack,

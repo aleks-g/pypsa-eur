@@ -20,6 +20,7 @@ from _helpers import (
 )
 from solve_network import prepare_network, collect_kwargs, create_optimization_model
 from _benchmark import memory_logger
+from mga_helpers import extract_net_load, extract_emissions, extract_objective
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +110,29 @@ def extract_shedding_metrics(n: pypsa.Network) -> tuple:
 
 # def extract_operational_costs(n)
 
-# def extract_electricity_prices(n)
+def extract_marginal_prices(n):
+    """
+    Extract nodal marginal prices from a solved validation dispatch.
 
-# def extract_net_load(n)
+    Returns electricity and heat prices as (snapshots x nodes) DataFrames.
 
-# def extract_dispatch(n)
+    Returns
+    -------
+    dict
+        Keys 'electricity' and 'heat'; each is a DataFrame of marginal prices (EUR/MWh).
+    """
+    prices = {}
+    elec_buses = n.buses[n.buses.carrier == "electricity"].index
+    if not elec_buses.empty:
+        prices["electricity"] = n.buses_t.marginal_price[elec_buses]
+    else:
+        raise ValueError("No 'electricity' buses found; check carrier names.")
+    heat_buses = n.buses[n.buses.carrier.str.contains("heat", case=False, na=False)].index
+    if not heat_buses.empty:
+        prices["heat"] = n.buses_t.marginal_price[heat_buses].sort_index(axis=1)
+    else:
+        logger.warning("No 'heat' buses found; heat prices absent.")
+    return prices
 
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -211,6 +230,26 @@ if __name__ == "__main__":
         # Export the results
         load_shedding.round(3).to_csv(snakemake.output.load_shedding)
         heat_shedding.round(3).to_csv(snakemake.output.heat_shedding)
+
+        # Extract net load
+        nl = extract_net_load(n, heating=True)
+        netload_df = pd.DataFrame({"elec": nl["elec"], "heat": nl["heat"]})
+        netload_df.to_csv(snakemake.output.netload)
+
+        # Extract emissions
+        emissions = extract_emissions(n)
+        emissions.to_frame(name="co2_flow").to_csv(snakemake.output.emissions)
+
+        # Extract prices
+        prices = extract_marginal_prices(n)
+        prices["electricity"].to_csv(snakemake.output.electricity_prices)
+        if "heat" in prices:
+            prices["heat"].to_csv(snakemake.output.heat_prices)
+
+        # Extract objective value
+        obj = extract_objective(n)
+        with open(snakemake.output.objective, "w") as f:
+            json.dump(obj, f, indent=2)
 
         # Write metadata sidecar (not tracked by snakemake)
         metadata_path = snakemake.output.load_shedding.replace("_load_shedding.csv", "_metadata.json")

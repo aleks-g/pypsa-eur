@@ -227,11 +227,11 @@ rule solve_sector_networks_perfect:
 rule test_networks:
     input:
         expand(
-            "results/" + config["run"]["prefix"] + "/{design_year}/validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv",
+            "results/" + config["run"]["prefix"] + "/{design_year}/validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{suffix}",
             operational_year = test_years(config["run"]["stress_tests"]["stress_years"]),
+            suffix = ["load_shedding.csv", "heat_shedding.csv", "net_load.csv", "emissions.csv", "elec_prices.csv", "heat_prices.csv", "objective.json"],
             **config["scenario"],
             design_year = design_years(config["run"]["stress_tests"]["design_years"]),
-            run=config["run"]["name"],
         ),
 
 
@@ -256,19 +256,17 @@ rule collect_mga_summaries:
 
 
 rule validate_mga_solutions:
-    """Validate all MGA capacity solutions with different operational weather years."""
     input:
         lambda w: [
-            f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}_load_shedding.csv"
-            # Static loops from config
+            f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}_{suffix}"
             for design_year in design_years(config["run"]["stress_tests"]["design_years"])
             for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
             for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
-            # Dynamic lookups from files
             for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/{scenario}.csv"]
             for network_hash in [get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache"), design_year=design_year, scenario=scenario) or ""]
             for dir_hash in get_mga_directions(near_opt_file)
-            if network_hash  # Skip if network_hash lookup failed
+            for suffix in ["load_shedding.csv", "heat_shedding.csv", "net_load.csv", "emissions.csv", "elec_prices.csv", "heat_prices.csv", "objective.json"]
+            if network_hash
         ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
 
 

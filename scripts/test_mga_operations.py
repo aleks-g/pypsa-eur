@@ -22,7 +22,8 @@ from _helpers import (
 )
 from solve_network import prepare_network, collect_kwargs, create_optimization_model
 from _benchmark import memory_logger
-from test_operations import set_weather, set_co2_price, extract_shedding_metrics
+from test_operations import set_weather, set_co2_price, extract_shedding_metrics, extract_marginal_prices
+from mga_helpers import extract_objective, extract_net_load, extract_emissions
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,8 @@ def apply_mga_capacities(n: pypsa.Network, capacities_df: pd.DataFrame) -> None:
                 if name in comp_df.index:
                     comp_df.loc[name, attribute] = value
 
+    
+
 
 
 if __name__ == "__main__":
@@ -146,6 +149,14 @@ if __name__ == "__main__":
         # Apply weather and fix capacities
         set_weather(n, m)
         n.optimize.fix_optimal_capacities()
+    
+        # Disable e_cyclic for CO2 atmosphere store before validation
+        mask = n.stores['bus'] == 'co2 atmosphere'
+        if n.stores.loc[mask, 'e_cyclic'].item():
+            n.stores.loc[mask, 'e_cyclic'] = False
+            logger.info("Set e_cyclic=False for 'co2 atmosphere' store")
+        else:
+            logger.info("'co2 atmosphere' store already has e_cyclic=False, skipping.")
 
         # Prepare network
         prepare_network(
@@ -202,6 +213,26 @@ if __name__ == "__main__":
         # Export shedding results (no full network to save disk space)
         load_shedding.round(3).to_csv(snakemake.output.load_shedding)
         heat_shedding.round(3).to_csv(snakemake.output.heat_shedding)
+
+        # Extract net load
+        nl = extract_net_load(n, heating=True)
+        netload_df = pd.DataFrame({"elec": nl["elec"], "heat": nl["heat"]})
+        netload_df.to_csv(snakemake.output.net_load)
+
+        # Extract emissions
+        emissions = extract_emissions(n)
+        emissions.to_frame(name="co2_flow").to_csv(snakemake.output.emissions)
+
+        # Extract prices
+        prices = extract_marginal_prices(n)
+        prices["electricity"].to_csv(snakemake.output.electricity_prices)
+        if "heat" in prices:
+            prices["heat"].to_csv(snakemake.output.heat_prices)
+
+        # Extract objective value
+        obj = extract_objective(n)
+        with open(snakemake.output.objective, "w") as f:
+            json.dump(obj, f, indent=2)
 
         # Record metadata so analysis can flag solutions that needed buffer relaxation.
         # Written alongside load_shedding but not tracked by snakemake as a required output.
