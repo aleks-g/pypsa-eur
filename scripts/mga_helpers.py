@@ -63,7 +63,7 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
     )
 
 
-def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash, check_only=False):
+def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash, wildcards=None, slack=None, check_only=False):
     """
     Export or check all per-direction MGA solution outputs.
 
@@ -82,6 +82,10 @@ def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash
     cache_dir : str
     network_hash : str
     direction_hash : str
+    wildcards : dict, optional
+        Used to extract wildcards for logging.
+    slack : float, optional
+        Used to slack for logging.
     check_only : bool, default False
         If True, check if all four output files exist.
 
@@ -136,10 +140,16 @@ def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash
     info = {
         "network_hash": network_hash,
         "direction_hash": direction_hash,
-        "capex": obj["capex"],
-        "opex": obj["opex"],
-        "total_cost": obj["total"],
-        "budget_constraint_dual": mga_dual,
+        "config_name": wildcards.get("run", "") if wildcards else "",
+        "design_year": wildcards.get("planning_horizons", "") if wildcards else "",
+        "clusters": wildcards.get("clusters", "") if wildcards else "",
+        "opts": wildcards.get("opts", "") if wildcards else "",
+        "sector_opts": wildcards.get("sector_opts", "") if wildcards else "",
+        "slack": slack,
+        "capex": round(obj["capex"]),
+        "opex": round(obj["opex"]),
+        "total_cost": round(obj["total"]),
+        "budget_constraint_dual": round(mga_dual, 4),
     }
     with open(info_file, "w") as f:
         json.dump(info, f, indent=2)
@@ -191,28 +201,6 @@ def extract_emissions(n):
 
     return flow
 
-
-def extract_mga_dual(n):
-    """
-    Extract the dual of the MGA near-optimality ('budget') constraint.
-
-    Must be called immediately after optimize_mga(), while n.model is live.
-    Dual = 0 means constraint is no longer binding (cannot improve the objective anymore); 
-    nonzero means constraint is binding (more slack would improve the direction objective).
-
-    Returns
-    -------
-    float or np.nan
-        Dual value if available, np.nan otherwise.
-    """
-    if not hasattr(n, "model") or n.model is None:
-        raise RuntimeError(
-            "n.model unavailable; call immediately after MGA solve, on live model."
-        )
-    if "budget" not in n.model.dual:
-        logger.warning("No 'budget' constraint found; returning NaN.")
-        return np.nan
-    return float(n.model.dual["budget"].item())
 
 
 def extract_mga_dual(n):
