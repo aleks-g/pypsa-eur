@@ -277,9 +277,7 @@ if __name__ == "__main__":
         with open(snakemake.output.objective, "w") as f:
             json.dump(obj, f, indent=2)
 
-        # Write metadata sidecar (not tracked by snakemake)
-        metadata_path = snakemake.output.load_shedding.replace("_load_shedding.csv", "_metadata.json")
-        with open(metadata_path, "w") as f:
+        with open(snakemake.output.metadata, "w") as f:
             json.dump({"attempt": attempt, "buffer": buffer, "status": status, "condition": condition}, f, indent=2)
 
     except Exception as e:

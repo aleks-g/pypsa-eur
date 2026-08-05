@@ -238,16 +238,13 @@ if __name__ == "__main__":
         with open(snakemake.output.objective, "w") as f:
             json.dump(obj, f, indent=2)
 
-        # Record metadata so analysis can flag solutions that needed buffer relaxation.
-        # Written alongside load_shedding but not tracked by snakemake as a required output.
-        metadata_path = snakemake.output.load_shedding.replace("_load_shedding.csv", "_metadata.json")
         metadata = {
             "attempt": attempt,
             "buffer": buffer,
             "status": status,
             "condition": condition,
         }
-        with open(metadata_path, "w") as f:
+        with open(snakemake.output.metadata, "w") as f:
             json.dump(metadata, f, indent=2)
 
         logger.info(f"MGA validation complete for direction {snakemake.wildcards.dir_hash}, year {snakemake.wildcards.operational_year}")
