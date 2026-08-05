@@ -142,7 +142,7 @@ else:
 
 
 # Custom rule for operational testing with different weather years
-def val(suffix):
+def val_op(suffix):   # test_operations
     return (RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/" + suffix)
 
 rule test_operations:
@@ -159,15 +159,16 @@ rule test_operations:
         weather_network = "resources/" + config["run"]["prefix"] + "/{operational_year}/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
     output:
         network=RESULTS + "networks/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
-        load_shedding=val("load_shedding.csv"),
-        heat_shedding=val("heat_shedding.csv"),
-        net_load=val("net_load.csv"),
-        emissions=val("emissions.csv"),
-        elec_prices=val("elec_prices.csv"),
-        heat_prices=val("heat_prices.csv"),
-        h2_prices=val("h2_prices.csv"),
-        co2_prices=val("co2_prices.csv"),
-        objective=val("objective.json"),
+        load_shedding=val_op("load_shedding.csv"),
+        heat_shedding=val_op("heat_shedding.csv"),
+        net_load=val_op("net_load.csv"),
+        emissions=val_op("emissions.csv"),
+        elec_prices=val_op("elec_prices.csv"),
+        heat_prices=val_op("heat_prices.csv"),
+        h2_prices=val_op("h2_prices.csv"),
+        co2_prices=val_op("co2_prices.csv"),
+        objective=val_op("objective.json"),
+        metadata=val_op("metadata.json"),
     shadow:
         None
     log:

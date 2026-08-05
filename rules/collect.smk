@@ -226,14 +226,13 @@ rule solve_sector_networks_perfect:
 
 rule test_networks:
     input:
-        expand(
-            "results/" + config["run"]["prefix"] + "/{design_year}/validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{suffix}",
-            operational_year = test_years(config["run"]["stress_tests"]["stress_years"]),
-            suffix = ["load_shedding.csv", "heat_shedding.csv", "net_load.csv", "emissions.csv", "elec_prices.csv", "heat_prices.csv", "objective.json"],
+        lambda w: expand(
+            "results/" + config["run"]["prefix"] + "/{design_year}/validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/{suffix}",
+            design_year=design_years(config["run"]["stress_tests"]["design_years"]),
+            operational_year=test_years(config["run"]["stress_tests"]["stress_years"]),
+            suffix=["load_shedding.csv", "heat_shedding.csv", "net_load.csv", "emissions.csv", "elec_prices.csv", "heat_prices.csv", "h2_prices.csv", "co2_prices.csv", "objective.json"],
             **config["scenario"],
-            design_year = design_years(config["run"]["stress_tests"]["design_years"]),
         ),
-
 
 rule compute_mga_solutions:
     """Compute all near-optimal (MGA) solutions for specified design years."""
@@ -258,14 +257,14 @@ rule collect_mga_summaries:
 rule validate_mga_solutions:
     input:
         lambda w: [
-            f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}_{suffix}"
+            f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}/{suffix}"
             for design_year in design_years(config["run"]["stress_tests"]["design_years"])
             for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
             for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
             for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/{scenario}.csv"]
             for network_hash in [get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache"), design_year=design_year, scenario=scenario) or ""]
             for dir_hash in get_mga_directions(near_opt_file)
-            for suffix in ["load_shedding.csv", "heat_shedding.csv", "net_load.csv", "emissions.csv", "elec_prices.csv", "heat_prices.csv", "objective.json"]
+            for suffix in ["load_shedding.csv", "heat_shedding.csv", "net_load.csv", "emissions.csv", "elec_prices.csv", "heat_prices.csv", "h2_prices.csv", "co2_prices.csv", "objective.json"]
             if network_hash
         ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
 

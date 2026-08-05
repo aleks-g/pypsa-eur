@@ -51,8 +51,10 @@ rule compute_near_opt:
     script:
         "../scripts/compute_near_opt.py"
 
-def val(suffix):
-    return (RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/" + suffix)
+def val_mga(suffix):  # validation_mga
+    return ("results/" + config["run"]["prefix"] +
+            "/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}"
+            "_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/" + suffix)
 
 rule validation_mga:
     wildcard_constraints:
@@ -81,15 +83,16 @@ rule validation_mga:
         near_opt_solutions="results/" + config["run"]["prefix"] +
             "/{design_year}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
     output:
-        load_shedding=val("load_shedding.csv"),
-        heat_shedding=val("heat_shedding.csv"),
-        net_load=val("net_load.csv"),
-        emissions=val("emissions.csv"),
-        elec_prices=val("elec_prices.csv"),
-        heat_prices=val("heat_prices.csv"),
-        h2_prices=val("h2_prices.csv"),
-        co2_prices=val("co2_prices.csv"),
-        objective=val("objective.json"),
+        load_shedding=val_mga("load_shedding.csv"),
+        heat_shedding=val_mga("heat_shedding.csv"),
+        net_load=val_mga("net_load.csv"),
+        emissions=val_mga("emissions.csv"),
+        elec_prices=val_mga("elec_prices.csv"),
+        heat_prices=val_mga("heat_prices.csv"),
+        h2_prices=val_mga("h2_prices.csv"),
+        co2_prices=val_mga("co2_prices.csv"),
+        objective=val_mga("objective.json"),
+        metadata=val_mga("metadata.json"),
     shadow:
         None
     log:
