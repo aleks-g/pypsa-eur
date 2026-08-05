@@ -225,9 +225,13 @@ if __name__ == "__main__":
 
         # Extract prices
         prices = extract_marginal_prices(n)
-        prices["electricity"].to_csv(snakemake.output.electricity_prices)
-        if "heat" in prices:
-            prices["heat"].to_csv(snakemake.output.heat_prices)
+        prices["electricity"].to_csv(snakemake.output.elec_prices)
+        prices["h2"].to_csv(snakemake.output.h2_prices)
+        prices["co2_stored"].to_csv(snakemake.output.co2_prices)
+
+        # Combine and save all heat types
+        heat_prices = pd.concat([prices[k] for k in prices if k.startswith('heat_')], axis=1)
+        heat_prices.to_csv(snakemake.output.heat_prices)
 
         # Extract objective value
         obj = extract_objective(n)

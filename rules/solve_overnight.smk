@@ -142,6 +142,9 @@ else:
 
 
 # Custom rule for operational testing with different weather years
+def val(suffix):
+    return (RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}/" + suffix)
+
 rule test_operations:
     params:
         solving=config_provider("solving"),
@@ -155,14 +158,16 @@ rule test_operations:
         + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
         weather_network = "resources/" + config["run"]["prefix"] + "/{operational_year}/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
     output:
-            network=RESULTS + "networks/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
-            load_shedding=RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv",
-            heat_shedding=RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_heat_shedding.csv",
-            net_load=RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_load.csv",
-            emissions=RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_emissions.csv",
-            elec_prices=RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_elec_prices.csv",
-            heat_prices=RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_heat_prices.csv",
-            objective=RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_objective.json",
+        network=RESULTS + "networks/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+        load_shedding=val("load_shedding.csv"),
+        heat_shedding=val("heat_shedding.csv"),
+        net_load=val("net_load.csv"),
+        emissions=val("emissions.csv"),
+        elec_prices=val("elec_prices.csv"),
+        heat_prices=val("heat_prices.csv"),
+        h2_prices=val("h2_prices.csv"),
+        co2_prices=val("co2_prices.csv"),
+        objective=val("objective.json"),
     shadow:
         None
     log:
