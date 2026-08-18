@@ -4,10 +4,19 @@
 
 import hashlib
 import json
+import yaml
 
 # Prefer parallel aggregation over monolithic compute when both could produce the output
 ruleorder: aggregate_near_opt > compute_near_opt
 ruleorder: validation_mga > test_operations
+
+with open(config["run"]["stress_tests"]["design_years"]) as f:
+    DESIGN_YEARS = list(yaml.safe_load(f).keys())
+
+with open(config["run"]["stress_tests"]["stress_years"]) as f:
+    STRESS_YEARS = list(yaml.safe_load(f).keys())
+
+
 
 
 rule compute_near_opt:
@@ -137,7 +146,6 @@ rule collect_mga_validation:
 
 # ========== Near-Opt Multi-Node Parallelization ==========
 # Distributes near-opt computation across multiple SLURM nodes using checkpoints.
-# See: documentation/pypsa-eur/mga-multi-node-parallelization.md
 # =========================================================
 
 
@@ -257,10 +265,20 @@ rule compute_near_opt_batch:
         "../scripts/compute_near_opt_batch.py"
 
 
-rule aggregate_near_opt:
-    """Combine all near-opt batch results into the final CSV (parallel equivalent of compute_near_opt)."""
+checkpoint aggregate_near_opt:
+    """Combine all near-opt batch results into the final CSV (parallel equivalent of compute_near_opt).
+
+    Declared as a checkpoint so that downstream input functions (_get_mga_info_files,
+    _get_mga_validation_load_shedding) are re-evaluated after this rule completes,
+    allowing Snakemake to resolve dynamic inputs that depend on the solved directions.
+
+    Also verifies cache completeness before writing outputs: if any info files are
+    missing (e.g. because a batch solve failed silently), this rule fails early with
+    a clear error rather than letting the pipeline proceed with missing cache files.
+    """
     params:
         solving=config_provider("solving"),
+        cache_dir=config_provider("near-opt", "cache_dir"),
     message:
         "Aggregating near-optimal batch results for {wildcards.run}"
     input:
@@ -280,13 +298,172 @@ rule aggregate_near_opt:
 
         all_points = [pd.read_csv(f) for f in input.batch_results]
         combined = pd.concat(all_points, ignore_index=True)
-        combined.to_csv(output.near_opt_solutions, index=False)
         logger.info(f"Total solutions: {len(combined)}")
 
         with open(input.manifest) as f:
             manifest = json.load(f)
-        Path(output.network_hash).write_text(manifest["network_hash"])
+        network_hash = manifest["network_hash"]
 
+        # Verify cache completeness before writing outputs — if any info file is
+        # missing the batch solve failed silently; fail here with a clear message
+        # rather than letting downstream analysis rules hit MissingInputException.
+        direction_hashes = combined["dir_hash"].unique().tolist() if "dir_hash" in combined.columns else []
+        cache_dir = params.cache_dir
+        missing = [
+            dh for dh in direction_hashes
+            if not Path(f"{cache_dir}/info/info_{network_hash}_{dh}.json").exists()
+        ]
+        if missing:
+            raise RuntimeError(
+                f"Cache incomplete after batch solve: {len(missing)}/{len(direction_hashes)} "
+                f"info files missing for network {network_hash}. "
+                f"Re-run compute_near_opt_batch to populate. First missing: {missing[0]}"
+            )
+
+        combined.to_csv(output.near_opt_solutions, index=False)
+        Path(output.network_hash).write_text(network_hash)
         logger.info("Aggregation complete")
 
 
+
+# ========== Near-Opt Resilience Analysis ==========
+# Computes resilience metrics for cost-optimal runs, MGA candidates, as well as their validation runs.
+# =========================================================
+
+rule analyse_cost_optimal_validation:
+    """Analyse cost-optimal validation runs to produce baseline shedding statistics."""
+    wildcard_constraints:
+        run=r"weather_year_\d+_\d+H",
+    input:
+        val_dirs=expand(
+            "results/" + config["run"]["prefix"] + "/{{run}}/validation/{operational_year}_base_s_{{clusters}}_{{opts}}_{{sector_opts}}_{{planning_horizons}}/objective.json",
+            operational_year=STRESS_YEARS,
+        ),
+        network_hash="results/" + config["run"]["prefix"] + "/{run}/near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_network_hash.txt",
+    output:
+        baseline_shedding="results/" + config["run"]["prefix"] + "/{run}/resilience/baseline_shedding_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        baseline_analysis="results/" + config["run"]["prefix"] + "/{run}/resilience/baseline_analysis_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+    log:
+        python="results/" + config["run"]["prefix"] + "/{run}/logs/mga/analyse_cost_optimal_validation/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+    benchmark:
+        "results/" + config["run"]["prefix"] + "/{run}/benchmarks/mga/analyse_cost_optimal_validation/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/analyse_cost_optimal_validation.py"
+
+
+def _get_mga_info_files(wildcards):
+    """Return paths to per-direction info JSON files in the MGA cache.
+
+    Gated on the aggregate_near_opt checkpoint: Snakemake guarantees this function
+    is only evaluated after that checkpoint has successfully completed (which in turn
+    requires all batch solves to have written their cache files). This eliminates
+    the stale-state fragility of the previous os.path.exists approach.
+    """
+    import pandas as pd
+    cp_out = checkpoints.aggregate_near_opt.get(**wildcards).output
+    network_hash = open(cp_out.network_hash).read().strip()
+    near_opt = pd.read_csv(cp_out.near_opt_solutions)
+    direction_hashes = near_opt["dir_hash"].unique().tolist() if "dir_hash" in near_opt.columns else []
+    cache_dir = config_provider("near-opt", "cache_dir")(wildcards)
+    return [f"{cache_dir}/info/info_{network_hash}_{dh}.json" for dh in direction_hashes]
+
+
+def _get_mga_validation_load_shedding(wildcards):
+    """Return paths to per-direction, per-stress-year load_shedding validation files.
+
+    Gated on the aggregate_near_opt checkpoint (same rationale as _get_mga_info_files).
+    """
+    import pandas as pd
+    cp_out = checkpoints.aggregate_near_opt.get(**wildcards).output
+    network_hash = open(cp_out.network_hash).read().strip()
+    near_opt = pd.read_csv(cp_out.near_opt_solutions)
+    direction_hashes = near_opt["dir_hash"].unique().tolist() if "dir_hash" in near_opt.columns else []
+    return expand(
+        val_mga("load_shedding.csv"),
+        design_year=wildcards.run,
+        network_hash=network_hash,
+        dir_hash=direction_hashes,
+        operational_year=STRESS_YEARS,
+        clusters=wildcards.clusters,
+        opts=wildcards.opts,
+        sector_opts=wildcards.sector_opts,
+        planning_horizons=wildcards.planning_horizons,
+    )
+
+
+rule analyse_mga_validation:
+    """Analyse MGA validation runs to produce per-candidate resilience metrics."""
+    wildcard_constraints:
+        run=r"weather_year_\d+_\d+H",
+    input:
+        info_files=_get_mga_info_files,
+        load_shedding=_get_mga_validation_load_shedding,
+        baseline_shedding=RESULTS + "resilience/baseline_shedding_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        baseline_analysis=RESULTS + "resilience/baseline_analysis_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        cost_opt_summary=RESULTS + "resilience/cost_opt_summary_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.json",
+        near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        network_hash=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_network_hash.txt",
+    output:
+        atomic=RESULTS + "resilience/mga_validation_atomic_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        rollup=RESULTS + "resilience/mga_validation_rollup_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+    params:
+        cache_dir=config_provider("near-opt", "cache_dir"),
+    log:
+        python=RESULTS + "logs/mga/analyse_mga_validation/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+    benchmark:
+        RESULTS + "benchmarks/mga/analyse_mga_validation/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/analyse_mga_validation.py"
+
+
+rule analyse_cost_opt:
+    input:
+        network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+    output:
+        summary=RESULTS + "resilience/cost_opt_summary_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.json",
+        caps=RESULTS + "resilience/cost_opt_caps_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        netload_stats=RESULTS + "resilience/cost_opt_netload_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        price_stats=RESULTS + "resilience/cost_opt_prices_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        emissions=RESULTS + "resilience/cost_opt_emissions_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        capital_costs=RESULTS + "resilience/cost_opt_capital_costs_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+    log:
+        python=RESULTS + "logs/mga/analyse_cost_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+    benchmark:
+        RESULTS + "benchmarks/mga/analyse_cost_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+    message:
+        "Analysing cost-optimal network for {wildcards.run}"
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/analyse_cost_opt.py"
+
+
+rule analyse_mga_candidates:
+    wildcard_constraints:
+        run=r"weather_year_\d+_\d+H",
+    input:
+        info_files=_get_mga_info_files,
+        cost_opt_caps=RESULTS + "resilience/cost_opt_caps_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        cost_opt_summary=RESULTS + "resilience/cost_opt_summary_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.json",
+        cost_opt_emissions=RESULTS + "resilience/cost_opt_emissions_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        capital_costs=RESULTS + "resilience/cost_opt_capital_costs_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        network_hash=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_network_hash.txt",
+    output:
+        candidates=RESULTS + "resilience/mga_candidates_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+    params:
+        cache_dir=config_provider("near-opt", "cache_dir"),
+    log:
+        python=RESULTS + "logs/mga/analyse_mga_candidates/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+    benchmark:
+        RESULTS + "benchmarks/mga/analyse_mga_candidates/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
+    message:
+        "Analysing MGA candidates for {wildcards.run}"
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/analyse_mga_candidates.py"

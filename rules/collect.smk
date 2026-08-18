@@ -24,103 +24,27 @@ def network_year(config):
 
 
 def get_mga_directions(near_opt_file):
-    """
-    Extract MGA direction hashes from a near_opt_solutions CSV file.
-
-    Parameters
-    ----------
-    near_opt_file : str or Path
-        Path to near_opt_solutions CSV file
-
-    Returns
-    -------
-    list
-        List of dir_hash values
-    """
+    """Return unique direction hashes from a near_opt_solutions CSV. Returns [] if file missing."""
     file_path = Path(near_opt_file)
     if not file_path.exists():
         return []
-
     try:
         df = pd.read_csv(file_path)
-        if 'dir_hash' in df.columns:
-            return df['dir_hash'].tolist()
-        else:
-            return []
+        return df["dir_hash"].unique().tolist() if "dir_hash" in df.columns else []
     except Exception as e:
         print(f"Warning: Could not read MGA directions from {near_opt_file}: {e}")
         return []
 
 
-def get_network_hash_from_cache(cache_dir):
-    """
-    Extract network hash from MGA cache directory.
-
-    Looks for cache files matching pattern: mga_cache_{network_hash}.csv
-
-    Parameters
-    ----------
-    cache_dir : str or Path
-        Path to cache directory
-
-    Returns
-    -------
-    list
-        List of network_hash values
-    """
-    cache_path = Path(cache_dir)
-    if not cache_path.exists():
-        return []
-
-    network_hashes = []
-    for cache_file in cache_path.glob('mga_cache_*.csv'):
-        # Extract hash from filename: mga_cache_{hash}.csv
-        hash_value = cache_file.stem.replace('mga_cache_', '')
-        network_hashes.append(hash_value)
-
-    return network_hashes
-
-
-def get_network_hash_for_near_opt(near_opt_file, cache_dir, design_year=None, scenario=None):
-    """
-    Get the network hash from the network_hash txt file.
-
-    Reads the network hash from the corresponding hash file in the same
-    directory as the near_opt CSV file.
-
-    Parameters
-    ----------
-    near_opt_file : str or Path
-        Path to near_opt_solutions CSV file
-    cache_dir : str or Path
-        Path to cache directory (unused, kept for compatibility)
-    design_year : str, optional
-        Design year (unused, kept for compatibility)
-    scenario : str, optional
-        Scenario string (unused, kept for compatibility)
-
-    Returns
-    -------
-    str or None
-        Network hash from the hash file, or None if not found
-    """
+def get_network_hash_for_near_opt(near_opt_file):
+    """Return network hash from the _network_hash.txt file alongside near_opt CSV. Returns None if missing."""
     near_opt_path = Path(near_opt_file)
     if not near_opt_path.exists():
         return None
-
-    # Construct hash filename by replacing .csv with _network_hash.txt
-    # e.g., base_s_50___2050.csv -> base_s_50___2050_network_hash.txt
-    hash_file = near_opt_path.with_suffix('').with_suffix('').parent / (near_opt_path.stem + "_network_hash.txt")
-
-    if not hash_file.exists():
-        print(f"Warning: {hash_file} not found")
-        return None
-
+    hash_file = near_opt_path.parent / (near_opt_path.stem + "_network_hash.txt")
     try:
-        network_hash = hash_file.read_text().strip()
-        return network_hash
-    except Exception as e:
-        print(f"Warning: Could not read network_hash from {hash_file}: {e}")
+        return hash_file.read_text().strip()
+    except Exception:
         return None
 
 
@@ -255,6 +179,13 @@ rule collect_mga_summaries:
 
 
 rule validate_mga_solutions:
+    """Collect all per-direction validation outputs for testing.
+
+    NOTE: reads near_opt.csv and network_hash.txt at DAG-build time (no checkpoint
+    gating). Requires these files to already exist. Use collect_resilience_analysis
+    for a fully automatic end-to-end run; use this rule only for targeted testing
+    when near_opt.csv is already populated.
+    """
     input:
         lambda w: [
             f"results/{config['run']['prefix']}/{design_year}/validation/mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}/{suffix}"
@@ -262,11 +193,32 @@ rule validate_mga_solutions:
             for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
             for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
             for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/{scenario}.csv"]
-            for network_hash in [get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache"), design_year=design_year, scenario=scenario) or ""]
+            for network_hash in [get_network_hash_for_near_opt(near_opt_file) or ""]
             for dir_hash in get_mga_directions(near_opt_file)
             for suffix in ["load_shedding.csv", "heat_shedding.csv", "net_load.csv", "emissions.csv", "elec_prices.csv", "heat_prices.csv", "h2_prices.csv", "co2_prices.csv", "objective.json"]
             if network_hash
         ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
+        
+rule collect_resilience_analysis:
+    """Collect all resilience analysis outputs for all design years."""
+    input:
+        lambda w: [
+            f"results/{config['run']['prefix']}/{design_year}/resilience/{filename}"
+            for design_year in design_years(config["run"]["stress_tests"]["design_years"])
+            for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
+            for filename in [
+                f"baseline_shedding_{scenario}.csv",
+                f"baseline_analysis_{scenario}.csv",
+                f"cost_opt_summary_{scenario}.json",
+                f"cost_opt_caps_{scenario}.csv",
+                f"cost_opt_netload_{scenario}.csv",
+                f"cost_opt_prices_{scenario}.csv",
+                f"cost_opt_emissions_{scenario}.csv",
+                f"mga_candidates_{scenario}.csv",
+                f"mga_validation_atomic_{scenario}.csv",
+                f"mga_validation_rollup_{scenario}.csv",
+            ]
+        ] if config.get("near-opt", {}).get("enable", False) else [],
 
 
 def balance_map_paths(kind, w):
@@ -303,12 +255,12 @@ rule plot_balance_maps_interactive:
         lambda w: balance_map_paths("interactive", w),
 
 
-rule plot_power_networks_clustered:
-    message:
-        "Plotting clustered power network topology"
-    input:
-        expand(
-            resources("maps/power-network-s-{clusters}.pdf"),
-            **config["scenario"],
-            run=config["run"]["name"],
-        ),
+# rule plot_power_networks_clustered:
+#    message:
+#        "Plotting clustered power network topology"
+#    input:
+#        expand(
+#            resources("maps/power-network-s-{clusters}.pdf"),
+#            **config["scenario"],
+#            run=config["run"]["name"],
+#        ),
