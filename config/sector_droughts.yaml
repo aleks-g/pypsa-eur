@@ -39,7 +39,7 @@ near-opt:
   enable: true
   approx:
     minmax: true
-    iterations: 10 # does not include minmax runs
+    iterations: 15 # does not include minmax runs
     directions: "random-uniform" # "halton"
     seed: 123 # possibly None
     max_parallel: 1
@@ -108,7 +108,7 @@ near-opt:
       - {carrier: nuclear, component: Generator, attribute: p_nom, weight: capital_cost}
   slack:
     relative: false
-    value: 3e10 # 10 bn EUR
+    value: 3e10 # 30 bn EUR
   cache_dir: "mga-cache"
   validation:
     enable: true
@@ -1090,7 +1090,7 @@ adjustments:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#solving
 solving:
-  tmpdir: "/tmp/"
+  tmpdir: 
   options:
     clip_p_max_pu: 1.e-2
     load_shedding: false
@@ -1123,7 +1123,7 @@ solving:
       fractional_last_unit_size: false
     keep_files: false
     model_kwargs:
-      solver_dir: ""
+      solver_dir: "/scratch"
 
   agg_p_nom_limits:
     agg_offwind: false
