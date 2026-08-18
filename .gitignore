@@ -99,9 +99,15 @@ slurm_logs/*
 snakemake_prepare
 snakemake_solve_fat
 snakemake_solve_thin
+snakemake_solve_long
 
 # other helpers
 cutout_links.sh
+setup_hardlinks.sh
+before_update.txt
+
+# archived / superseded configs (kept locally, not tracked)
+config/archive/
 
 mga-cache/*
 
