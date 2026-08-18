@@ -72,23 +72,13 @@ if __name__ == "__main__":
         slack = slack_config.get("value", 0.05)
         logger.info(f"Using relative slack: {slack}")
     else:
-        # Absolute slack in currency units
+        # Absolute slack in currency units — use statistics to match compute_near_opt_batch.py
         absolute_slack = float(slack_config.get("value", 0.0))
-        if not hasattr(n, 'objective'):
-            raise ValueError("Network has no objective value. Run optimisation first.")
-        # Convert objective to scalar - handle various types
-        obj = n.objective
-        if isinstance(obj, (pd.Series, pd.DataFrame)):
-            objective_value = float(obj.sum())
-        elif isinstance(obj, np.ndarray):
-            objective_value = float(obj.sum())
-        else:
-            objective_value = float(obj)
-
+        objective_value = float(n.statistics.capex().sum() + n.statistics.opex().sum())
         if objective_value == 0:
             raise ValueError("Network objective is zero.")
-        slack = float(absolute_slack) / float(objective_value)
-        logger.info(f"Using absolute slack: {absolute_slack} (relative: {slack})")
+        slack = float(absolute_slack) / objective_value
+        logger.info(f"Using absolute slack: {absolute_slack} (relative: {slack:.4f})")
 
     # Load and fill dimensions
     logger.info("Loading projection dimensions from config")
