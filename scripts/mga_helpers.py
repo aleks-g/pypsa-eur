@@ -146,9 +146,9 @@ def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash
         "opts": wildcards.get("opts", "") if wildcards else "",
         "sector_opts": wildcards.get("sector_opts", "") if wildcards else "",
         "slack": slack,
-        "capex": round(obj["capex"]),
-        "opex": round(obj["opex"]),
-        "total_cost": round(obj["total"]),
+        "capex": round(obj["capex"], 2),
+        "opex": round(obj["opex"], 2),
+        "total_cost": round(obj["total"], 2),
         "budget_constraint_dual": round(mga_dual, 4),
     }
     with open(info_file, "w") as f:
