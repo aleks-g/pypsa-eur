@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Aleksander Grochowicz
+#
+# SPDX-License-Identifier: MIT
+#
+# Slack sweep definition for the near-optimality analysis.
+#
+# Each entry below generates a standalone config file `config/<name>.yaml` that
+# is identical to the base config except for two fields:
+#   - run.prefix            -> the entry name
+#   - near-opt.slack.value  -> the entry's absolute slack (with label as comment)
+#
+# Regenerate the sweep configs after editing this file with:
+#   python scripts/generate_slack_sweep_configs.py
+
+base: config/sector_droughts.yaml
+
+# name -> {value: absolute slack in EUR (kept as a literal string), label: comment}
+sweep:
+  sector_droughts_1bn:  {value: "1e9",  label: "1bn EUR"}
+  sector_droughts_2bn:  {value: "2e9",  label: "2bn EUR"}
+  sector_droughts_5bn:  {value: "5e9",  label: "5bn EUR"}
+  sector_droughts_10bn: {value: "1e10", label: "10bn EUR"}
+  sector_droughts_20bn: {value: "2e10", label: "20bn EUR"}
