@@ -1,0 +1,3 @@
+[submodule "nopo"]
+	path = nopo
+	url = ../pypsa-nopo.git

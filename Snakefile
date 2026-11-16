@@ -104,6 +104,13 @@ include: "rules/postprocess.smk"
 include: "rules/development.smk"
 
 
+# nopo: near-optimal spaces + resilience validation (git submodule, see nopo/README.md).
+# Disabled (default) => the workflow is identical to upstream PyPSA-Eur.
+if config.get("nopo", {}).get("enable", False):
+
+    include: "nopo/nopo.smk"
+
+
 # Define output categories based on foresight mode
 # This follows the same pattern as postprocess.smk for consistency
 
